@@ -1,0 +1,124 @@
+.wrapper {
+  padding: 2rem 0;
+}
+
+.header h2 {
+  margin: 0;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+}
+
+.header p {
+  color: #4b5563;
+  margin: 0.75rem 0 1.5rem;
+}
+
+.controls {
+  display: grid;
+  gap: 0.75rem;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 1rem;
+}
+
+.searchLabel {
+  font-weight: 600;
+  color: #111827;
+}
+
+.searchInput,
+.select {
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  font-size: 1rem;
+  padding: 0.65rem 0.75rem;
+}
+
+.filterRow {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.clearButton {
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  background: #fff;
+  padding: 0.55rem 0.8rem;
+  cursor: pointer;
+}
+
+.resultCount {
+  margin-top: 1rem;
+  color: #374151;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+.card {
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #fff;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.card h3 {
+  margin: 0;
+  color: #111827;
+}
+
+.card p {
+  margin: 0;
+  color: #4b5563;
+}
+
+.tags {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.tags span {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.8rem;
+}
+
+.openButton {
+  margin-top: auto;
+  text-decoration: none;
+  display: inline-flex;
+  width: fit-content;
+  background: #111827;
+  color: #fff;
+  border-radius: 10px;
+  padding: 0.55rem 0.85rem;
+  font-weight: 600;
+}
+
+.emptyState {
+  margin-top: 1rem;
+  color: #b91c1c;
+}
+
+@media (min-width: 700px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1080px) {
+  .grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
