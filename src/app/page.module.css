@@ -1,0 +1,73 @@
+.hero {
+  margin-top: 1rem;
+  background: linear-gradient(160deg, #eff6ff 0%, #f8fafc 60%, #ffffff 100%);
+  border: 1px solid #dbeafe;
+  border-radius: 16px;
+  padding: clamp(1.2rem, 3vw, 2.4rem);
+}
+
+.eyebrow {
+  margin: 0;
+  color: #2563eb;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.8rem;
+}
+
+.hero h1 {
+  margin: 0.4rem 0;
+  font-size: clamp(1.8rem, 4vw, 3rem);
+}
+
+.hero p {
+  margin: 0;
+  color: #374151;
+  max-width: 65ch;
+}
+
+.heroActions {
+  margin-top: 1.2rem;
+  display: flex;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.primaryCta,
+.secondaryCta {
+  text-decoration: none;
+  border-radius: 10px;
+  padding: 0.65rem 1rem;
+  font-weight: 700;
+}
+
+.primaryCta {
+  background: #2563eb;
+  color: #fff;
+}
+
+.secondaryCta {
+  border: 1px solid #cbd5e1;
+  color: #0f172a;
+  background: #fff;
+}
+
+.teaser {
+  margin: 1rem 0 2rem;
+  background: #0f172a;
+  color: #e2e8f0;
+  border-radius: 16px;
+  padding: clamp(1rem, 3vw, 2rem);
+}
+
+.teaser h2 {
+  margin-top: 0;
+  color: #fff;
+}
+
+.teaser ul {
+  margin: 0;
+  padding-left: 1rem;
+  display: grid;
+  gap: 0.6rem;
+}
