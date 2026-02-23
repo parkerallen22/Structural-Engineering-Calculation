@@ -151,161 +151,151 @@ const toNumber = (value, fallback = 0) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
-const fmtSketch = (value) => {
+const formatDim = (value) => {
   const rounded = Math.round(toNumber(value) * 1000) / 1000;
-  return rounded.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 3 });
+  return `${rounded.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 3 })} in`;
 };
 
-function Dimension({
-  orientation,
-  x1,
-  y1,
-  x2,
-  y2,
-  extA,
-  extB,
-  label,
-  className,
-  textClassName,
-  labelX,
-  labelY,
-  textAnchor = 'middle',
-  rotateLabel = false,
-  arrowMode = 'outward',
-  labelOffset,
-  showTextLeader = false,
-}) {
-  const arrowLength = 8;
-  const arrowHalfWidth = 3;
-  const midX = (x1 + x2) / 2;
-  const midY = (y1 + y2) / 2;
-  const anchorX = labelX ?? midX;
-  const anchorY = labelY ?? midY;
-  const textDy = -8;
-  const dx = labelOffset?.dx ?? 0;
-  const dy = labelOffset?.dy ?? 0;
-  const resolvedX = anchorX + dx;
-  const resolvedY = anchorY + dy;
-  const labelTransform = orientation === 'vertical' && rotateLabel ? `rotate(-90 ${resolvedX} ${resolvedY})` : undefined;
-
-  const vecX = x2 - x1;
-  const vecY = y2 - y1;
-  const length = Math.hypot(vecX, vecY) || 1;
-  const ux = vecX / length;
-  const uy = vecY / length;
+function DimArrow({ x, y, dx, dy }) {
+  const len = 6;
+  const half = 2.2;
+  const mag = Math.hypot(dx, dy) || 1;
+  const ux = dx / mag;
+  const uy = dy / mag;
   const px = -uy;
   const py = ux;
+  const bx = x - ux * len;
+  const by = y - uy * len;
 
-  const buildArrow = (tipX, tipY, dirX, dirY) => {
-    const baseX = tipX - dirX * arrowLength;
-    const baseY = tipY - dirY * arrowLength;
-    const leftX = baseX + px * arrowHalfWidth;
-    const leftY = baseY + py * arrowHalfWidth;
-    const rightX = baseX - px * arrowHalfWidth;
-    const rightY = baseY - py * arrowHalfWidth;
-    return `M ${leftX} ${leftY} L ${tipX} ${tipY} L ${rightX} ${rightY}`;
-  };
+  return (
+    <path
+      d={`M ${bx + px * half} ${by + py * half} L ${x} ${y} L ${bx - px * half} ${by - py * half}`}
+      className={styles.dimStroke}
+    />
+  );
+}
 
-  const startDir = arrowMode === 'inward' ? { x: ux, y: uy } : { x: -ux, y: -uy };
-  const endDir = arrowMode === 'inward' ? { x: -ux, y: -uy } : { x: ux, y: uy };
+function LinearDimension({
+  kind,
+  from,
+  to,
+  dimAt,
+  extFrom,
+  extTo,
+  label,
+  inward = false,
+  textOffset = 0,
+  labelShift = 0,
+  withLeader = false,
+}) {
+  const isHorizontal = kind === 'horizontal';
+  const start = isHorizontal ? { x: from, y: dimAt } : { x: dimAt, y: from };
+  const end = isHorizontal ? { x: to, y: dimAt } : { x: dimAt, y: to };
+  const midX = (start.x + end.x) / 2;
+  const midY = (start.y + end.y) / 2;
+  const textX = isHorizontal ? midX + labelShift : midX + textOffset;
+  const textY = isHorizontal ? midY - 10 + textOffset : midY + labelShift;
+  const extA = isHorizontal
+    ? { x1: from, y1: extFrom, x2: from, y2: dimAt }
+    : { x1: extFrom, y1: from, x2: dimAt, y2: from };
+  const extB = isHorizontal
+    ? { x1: to, y1: extTo, x2: to, y2: dimAt }
+    : { x1: extTo, y1: to, x2: dimAt, y2: to };
 
-  const leaderEndX = resolvedX;
-  const leaderEndY = resolvedY + textDy - 4;
+  const startDir = inward ? { dx: end.x - start.x, dy: end.y - start.y } : { dx: start.x - end.x, dy: start.y - end.y };
+  const endDir = inward ? { dx: start.x - end.x, dy: start.y - end.y } : { dx: end.x - start.x, dy: end.y - start.y };
+  const rotate = !isHorizontal ? `rotate(-90 ${textX} ${textY})` : undefined;
 
   return (
     <g>
-      {extA ? <line x1={extA.x1} y1={extA.y1} x2={extA.x2} y2={extA.y2} className={className} /> : null}
-      {extB ? <line x1={extB.x1} y1={extB.y1} x2={extB.x2} y2={extB.y2} className={className} /> : null}
-      <line x1={x1} y1={y1} x2={x2} y2={y2} className={className} />
-      <path d={buildArrow(x1, y1, startDir.x, startDir.y)} className={className} />
-      <path d={buildArrow(x2, y2, endDir.x, endDir.y)} className={className} />
-      {showTextLeader && (dx !== 0 || dy !== 0) ? <line x1={anchorX} y1={anchorY} x2={leaderEndX} y2={leaderEndY} className={className} /> : null}
-      <text x={resolvedX} y={resolvedY + textDy} transform={labelTransform} textAnchor={textAnchor} className={textClassName}>{label}</text>
+      <line {...extA} className={styles.dimStroke} />
+      <line {...extB} className={styles.dimStroke} />
+      <line x1={start.x} y1={start.y} x2={end.x} y2={end.y} className={styles.dimStroke} />
+      <DimArrow x={start.x} y={start.y} {...startDir} />
+      <DimArrow x={end.x} y={end.y} {...endDir} />
+      {withLeader ? <line x1={midX} y1={midY} x2={textX - 6} y2={textY - 4} className={styles.dimStroke} /> : null}
+      <text x={textX} y={textY} transform={rotate} className={styles.dimensionText} textAnchor="middle">{label}</text>
     </g>
   );
 }
 
 function SectionSketch({ region, title }) {
-  const D = toNumber(region.D, 30);
-  const tw = toNumber(region.tw, 0.75);
-  const tfTop = toNumber(region.tfTop, 1);
-  const tfBot = toNumber(region.tfBot, 1);
-  const bfTop = toNumber(region.bfTop, 12);
-  const bfBot = toNumber(region.bfBot, 12);
-  const tHaunch = toNumber(region.tHaunch, 1);
-  const tSlab = toNumber(region.tSlab, 8);
-  const bEff = toNumber(region.bEff, 60);
-  const viewWidth = 1120;
-  const viewHeight = 700;
-  const viewBoxX = -60;
-  const viewBoxY = -40;
-  const centerX = 500;
-  const topMargin = 88;
+  const D = formatDim(region.D);
+  const tw = formatDim(region.tw);
+  const tfTop = formatDim(region.tfTop);
+  const tfBot = formatDim(region.tfBot);
+  const bfTop = formatDim(region.bfTop);
+  const bfBot = formatDim(region.bfBot);
+  const tHaunch = formatDim(region.tHaunch);
+  const tSlab = formatDim(region.tSlab);
+  const bEff = formatDim(region.bEff);
 
-  const slabW = 600 * 0.7;
-  const slabH = 80;
-  const haunchH = 10;
-  const steelH = 300;
-  const topFlangeW = 120;
-  const topFlangeH = 10;
-  const webW = 8;
-  const bottomFlangeW = 120;
-  const bottomFlangeH = 10;
+  const viewWidth = 920;
+  const viewHeight = 560;
+  const centerX = 360;
+  const slabY = 110;
+  const slabW = 460;
+  const slabH = 84;
+  const haunchW = 150;
+  const haunchH = 14;
+  const steelTopY = slabY + slabH + haunchH;
+  const steelH = 245;
+  const topFlangeW = 190;
+  const topFlangeH = 22;
+  const webW = 30;
+  const bottomFlangeW = 210;
+  const bottomFlangeH = 24;
   const webH = steelH - topFlangeH - bottomFlangeH;
-  const slabY = topMargin;
-  const haunchY = slabY + slabH;
-  const steelTopY = haunchY + haunchH;
-  const baseY = steelTopY + steelH;
+  const steelBottomY = steelTopY + steelH;
 
-  const dimensionTextClass = styles.dimensionText;
-  const topBarsY = slabY + 24;
-  const bottomBarsY = slabY + slabH - 24;
-  const barXs = [centerX - 250, centerX - 150, centerX - 50, centerX + 50, centerX + 150, centerX + 250];
-  const leftSteelEdge = centerX - topFlangeW / 2;
-  const leftSlabEdge = centerX - slabW / 2;
-  const rightSteelEdge = centerX + topFlangeW / 2;
-  const rightSlabEdge = centerX + slabW / 2;
+  const leftSlab = centerX - slabW / 2;
+  const rightSlab = centerX + slabW / 2;
+  const leftTopFlange = centerX - topFlangeW / 2;
+  const rightTopFlange = centerX + topFlangeW / 2;
+  const leftBottomFlange = centerX - bottomFlangeW / 2;
+  const rightBottomFlange = centerX + bottomFlangeW / 2;
+  const leftWeb = centerX - webW / 2;
+  const rightWeb = centerX + webW / 2;
+  const topBarsY = slabY + 22;
+  const bottomBarsY = slabY + slabH - 22;
+  const barXs = [leftSlab + 54, leftSlab + 125, leftSlab + 196, leftSlab + 267, leftSlab + 338, rightSlab - 54];
+
+  const topCallout = `${region.rebarTop.barSize} @ ${toNumber(region.rebarTop.spacing, 12)}"`;
   const bottomNote = region.rebarBottom.alternatingBars
-    ? 'Bottom: #5 @ 12 in, #6 @ 12 in; clear = 1 in'
-    : 'Bottom: #5 @ 12 in; clear = 1 in';
-  const extGap = 8;
-  const topFlangeBottomY = steelTopY + topFlangeH;
-  const bottomFlangeTopY = baseY - bottomFlangeH;
+    ? `${region.rebarBottom.barSize} @ ${toNumber(region.rebarBottom.spacing, 12)}" & ${region.rebarBottom.altBarSize} @ ${toNumber(region.rebarBottom.altSpacing, 12)}" Alternating`
+    : `${region.rebarBottom.barSize} @ ${toNumber(region.rebarBottom.spacing, 12)}"`;
 
   return (
     <article className={styles.diagramCard}>
       {title ? <h4>{title}</h4> : null}
-      <div className={styles.sectionSketchScroller}>
-        <svg className={styles.sectionSketch} viewBox={`${viewBoxX} ${viewBoxY} ${viewWidth} ${viewHeight}`} role="img" aria-label={`Composite section sketch ${title ?? ''}`}>
-        <rect x="0" y="0" width="1000" height="620" rx="14" className={styles.diagramBg} />
+      <div className={styles.sectionSketchWrap}>
+        <svg className={styles.sectionSketch} viewBox={`0 0 ${viewWidth} ${viewHeight}`} role="img" aria-label={`Composite section sketch ${title ?? ''}`}>
+          <rect x="1" y="1" width={viewWidth - 2} height={viewHeight - 2} className={styles.diagramBg} />
 
-        <rect x={centerX - slabW / 2} y={slabY} width={slabW} height={slabH} className={styles.slabShape} />
-        <rect x={centerX - topFlangeW / 2} y={haunchY} width={topFlangeW} height={haunchH} className={styles.haunchShape} />
+          <rect x={leftSlab} y={slabY} width={slabW} height={slabH} className={styles.slabShape} />
+          <rect x={centerX - haunchW / 2} y={slabY + slabH} width={haunchW} height={haunchH} className={styles.haunchShape} />
+          <rect x={leftTopFlange} y={steelTopY} width={topFlangeW} height={topFlangeH} className={styles.steelShape} />
+          <rect x={leftWeb} y={steelTopY + topFlangeH} width={webW} height={webH} className={styles.steelShape} />
+          <rect x={leftBottomFlange} y={steelBottomY - bottomFlangeH} width={bottomFlangeW} height={bottomFlangeH} className={styles.steelShape} />
 
-        <rect x={centerX - topFlangeW / 2} y={steelTopY} width={topFlangeW} height={topFlangeH} className={styles.steelShape} />
-        <rect x={centerX - webW / 2} y={steelTopY + topFlangeH} width={webW} height={webH} className={styles.steelShape} />
-        <rect x={centerX - bottomFlangeW / 2} y={baseY - bottomFlangeH} width={bottomFlangeW} height={bottomFlangeH} className={styles.steelShape} />
+          {barXs.map((x) => <circle key={`tb-${x}`} cx={x} cy={topBarsY} r="5" className={styles.rebarDot} />)}
+          {barXs.map((x) => <circle key={`bb-${x}`} cx={x} cy={bottomBarsY} r="5" className={styles.rebarDotBottom} />)}
 
-        {barXs.map((x) => <circle key={`top-${x}`} cx={x} cy={topBarsY} r="7" className={styles.rebarDot} />)}
-        {barXs.map((x) => <circle key={`bottom-${x}`} cx={x} cy={bottomBarsY} r="7" className={styles.rebarDotBottom} />)}
+          <LinearDimension kind="horizontal" from={leftSlab} to={rightSlab} dimAt={64} extFrom={slabY - 14} extTo={slabY - 14} label={bEff} />
+          <LinearDimension kind="vertical" from={slabY} to={slabY + slabH} dimAt={112} extFrom={leftSlab - 14} extTo={leftSlab - 14} label={tSlab} inward textOffset={-20} />
+          <LinearDimension kind="vertical" from={slabY + slabH} to={steelTopY} dimAt={146} extFrom={centerX - haunchW / 2 - 10} extTo={centerX - haunchW / 2 - 10} label={tHaunch} inward textOffset={-18} />
+          <LinearDimension kind="vertical" from={steelTopY} to={steelBottomY} dimAt={84} extFrom={leftTopFlange - 16} extTo={leftBottomFlange - 16} label={D} textOffset={-22} />
 
-        <Dimension orientation="horizontal" x1={leftSlabEdge} y1={40} x2={rightSlabEdge} y2={40} extA={{ x1: leftSlabEdge, y1: slabY - extGap, x2: leftSlabEdge, y2: 40 }} extB={{ x1: rightSlabEdge, y1: slabY - extGap, x2: rightSlabEdge, y2: 40 }} label={`beff = ${fmtSketch(bEff)} in`} className={styles.dimensionLine} textClassName={dimensionTextClass} labelY={30} />
+          <LinearDimension kind="horizontal" from={leftTopFlange} to={rightTopFlange} dimAt={255} extFrom={steelTopY - 10} extTo={steelTopY - 10} label={bfTop} />
+          <LinearDimension kind="horizontal" from={leftBottomFlange} to={rightBottomFlange} dimAt={505} extFrom={steelBottomY - bottomFlangeH + 10} extTo={steelBottomY - bottomFlangeH + 10} label={bfBot} />
+          <LinearDimension kind="horizontal" from={leftWeb} to={rightWeb} dimAt={378} extFrom={steelTopY + topFlangeH + 10} extTo={steelTopY + topFlangeH + 10} label={tw} inward withLeader labelShift={74} />
+          <LinearDimension kind="vertical" from={steelTopY} to={steelTopY + topFlangeH} dimAt={640} extFrom={rightTopFlange + 10} extTo={rightTopFlange + 10} label={tfTop} inward textOffset={18} />
+          <LinearDimension kind="vertical" from={steelBottomY - bottomFlangeH} to={steelBottomY} dimAt={640} extFrom={rightBottomFlange + 10} extTo={rightBottomFlange + 10} label={tfBot} inward textOffset={18} />
 
-        <Dimension orientation="vertical" x1={90} y1={baseY} x2={90} y2={steelTopY} extA={{ x1: leftSteelEdge - extGap, y1: baseY, x2: 90, y2: baseY }} extB={{ x1: leftSteelEdge - extGap, y1: steelTopY, x2: 90, y2: steelTopY }} label={`D = ${fmtSketch(D)} in`} className={styles.dimensionLine} textClassName={dimensionTextClass} rotateLabel labelX={64} labelY={(baseY + steelTopY) / 2} labelOffset={{ dx: -8, dy: 0 }} showTextLeader />
-        <Dimension orientation="vertical" x1={150} y1={haunchY} x2={150} y2={steelTopY} extA={{ x1: leftSteelEdge - extGap, y1: haunchY, x2: 150, y2: haunchY }} extB={{ x1: leftSteelEdge - extGap, y1: steelTopY, x2: 150, y2: steelTopY }} label={`thaunch = ${fmtSketch(tHaunch)} in`} className={styles.dimensionLine} textClassName={dimensionTextClass} rotateLabel arrowMode="inward" labelX={134} labelY={(haunchY + steelTopY) / 2} labelOffset={{ dx: -18, dy: 0 }} showTextLeader />
-        <Dimension orientation="vertical" x1={210} y1={slabY} x2={210} y2={haunchY} extA={{ x1: leftSlabEdge - extGap, y1: slabY, x2: 210, y2: slabY }} extB={{ x1: leftSlabEdge - extGap, y1: haunchY, x2: 210, y2: haunchY }} label={`tslab = ${fmtSketch(tSlab)} in`} className={styles.dimensionLine} textClassName={dimensionTextClass} rotateLabel arrowMode="inward" labelX={196} labelY={(slabY + haunchY) / 2} labelOffset={{ dx: -18, dy: -4 }} showTextLeader />
-
-        <Dimension orientation="horizontal" x1={centerX - topFlangeW / 2} y1={250} x2={centerX + topFlangeW / 2} y2={250} extA={{ x1: centerX - topFlangeW / 2, y1: steelTopY - extGap, x2: centerX - topFlangeW / 2, y2: 250 }} extB={{ x1: centerX + topFlangeW / 2, y1: steelTopY - extGap, x2: centerX + topFlangeW / 2, y2: 250 }} label={`bf_top = ${fmtSketch(bfTop)} in`} className={styles.dimensionLine} textClassName={dimensionTextClass} labelY={236} />
-        <Dimension orientation="horizontal" x1={centerX - bottomFlangeW / 2} y1={600} x2={centerX + bottomFlangeW / 2} y2={600} extA={{ x1: centerX - bottomFlangeW / 2, y1: bottomFlangeTopY + extGap, x2: centerX - bottomFlangeW / 2, y2: 600 }} extB={{ x1: centerX + bottomFlangeW / 2, y1: bottomFlangeTopY + extGap, x2: centerX + bottomFlangeW / 2, y2: 600 }} label={`bf_bottom = ${fmtSketch(bfBot)} in`} className={styles.dimensionLine} textClassName={dimensionTextClass} labelY={586} />
-        <Dimension orientation="horizontal" x1={centerX - webW / 2} y1={400} x2={centerX + webW / 2} y2={400} extA={{ x1: centerX - webW / 2, y1: topFlangeBottomY + extGap, x2: centerX - webW / 2, y2: 400 }} extB={{ x1: centerX + webW / 2, y1: topFlangeBottomY + extGap, x2: centerX + webW / 2, y2: 400 }} label={`tw = ${fmtSketch(tw)} in`} className={styles.dimensionLine} textClassName={dimensionTextClass} arrowMode="inward" labelX={626} labelY={392} textAnchor="start" labelOffset={{ dx: 0, dy: -6 }} showTextLeader />
-        <Dimension orientation="vertical" x1={900} y1={steelTopY} x2={900} y2={steelTopY + topFlangeH} extA={{ x1: rightSteelEdge + extGap, y1: steelTopY, x2: 900, y2: steelTopY }} extB={{ x1: rightSteelEdge + extGap, y1: steelTopY + topFlangeH, x2: 900, y2: steelTopY + topFlangeH }} label={`tf_top = ${fmtSketch(tfTop)} in`} className={styles.dimensionLine} textClassName={dimensionTextClass} rotateLabel arrowMode="inward" labelX={926} labelY={steelTopY + topFlangeH / 2} labelOffset={{ dx: 20, dy: 0 }} showTextLeader />
-        <Dimension orientation="vertical" x1={900} y1={baseY - bottomFlangeH} x2={900} y2={baseY} extA={{ x1: rightSteelEdge + extGap, y1: baseY - bottomFlangeH, x2: 900, y2: baseY - bottomFlangeH }} extB={{ x1: rightSteelEdge + extGap, y1: baseY, x2: 900, y2: baseY }} label={`tf_bottom = ${fmtSketch(tfBot)} in`} className={styles.dimensionLine} textClassName={dimensionTextClass} rotateLabel arrowMode="inward" labelX={926} labelY={baseY - bottomFlangeH / 2} labelOffset={{ dx: 20, dy: 0 }} showTextLeader />
-
-        <text x="820" y="132" className={dimensionTextClass}>Top: #5 @ 12 in; clear = 2.25 in</text>
-        <text x="820" y="168" className={dimensionTextClass}>{bottomNote}</text>
-
-        <polyline points={`812,126 785,126 ${barXs[5] + 12},${topBarsY - 6}`} className={styles.dimensionLine} fill="none" />
-        <polyline points={`812,162 785,162 ${barXs[5] + 12},${bottomBarsY - 6}`} className={styles.dimensionLine} fill="none" />
+          <text x="700" y="120" className={styles.calloutText}>{topCallout}</text>
+          <polyline points={`686,112 650,112 ${barXs[4]},${topBarsY - 6}`} className={styles.dimStroke} fill="none" />
+          <text x="700" y="164" className={styles.calloutText}>{bottomNote}</text>
+          <polyline points={`686,156 650,156 ${barXs[4]},${bottomBarsY - 6}`} className={styles.dimStroke} fill="none" />
         </svg>
       </div>
     </article>

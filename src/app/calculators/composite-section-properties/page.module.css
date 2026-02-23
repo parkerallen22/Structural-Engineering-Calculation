@@ -122,63 +122,63 @@
   font-size: clamp(1.55rem, 2vw, 1.85rem);
 }
 
-.sectionSketchScroller {
+.sectionSketchWrap {
   width: 100%;
-  overflow-x: auto;
-  overflow-y: visible;
-  padding: 0 0 0.4rem;
   display: flex;
   justify-content: center;
 }
 
-
 .sectionSketch {
-  width: min(100%, 1120px);
-  min-width: 960px;
+  width: min(100%, 920px);
   height: auto;
-  aspect-ratio: 1120 / 700;
+  aspect-ratio: 920 / 560;
   display: block;
   overflow: visible;
 }
 
-
-.dimensionLine {
-  stroke: #6b7280;
-  stroke-width: 1.4;
+.dimStroke {
+  stroke: #000;
+  stroke-width: 1.2;
   stroke-linecap: round;
   stroke-linejoin: round;
   fill: none;
 }
 
 .dimensionText {
-  font-size: 20px;
-  font-weight: 600;
-  fill: #0f172a;
+  font-size: 16px;
+  font-weight: 700;
+  fill: #000;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+.calloutText {
+  font-size: 15px;
+  font-weight: 700;
+  fill: #000;
 }
 
 .diagramBg {
   fill: #ffffff;
-  stroke: #d1d5db;
-  stroke-width: 1.5;
+  stroke: #d4d8de;
+  stroke-width: 1.2;
 }
 
 .steelShape {
-  fill: #9ca3af;
-  stroke: #111827;
-  stroke-width: 2;
+  fill: #6b7280;
+  stroke: #111;
+  stroke-width: 3.4;
 }
 
 .haunchShape {
-  fill: #d1d5db;
-  stroke: #111827;
-  stroke-width: 2;
+  fill: #dadde2;
+  stroke: #111;
+  stroke-width: 3;
 }
 
 .slabShape {
-  fill: #f3f4f6;
-  stroke: #111827;
-  stroke-width: 2;
+  fill: #e6e8ec;
+  stroke: #111;
+  stroke-width: 3;
 }
 
 .rebarDot {
@@ -188,9 +188,9 @@
 }
 
 .rebarDotBottom {
-  fill: #4b5563;
+  fill: #1f2937;
   stroke: #111827;
-  stroke-width: 1.5;
+  stroke-width: 1.2;
 }
 
 .resultTable { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin-top: 0.75rem; }
