@@ -157,6 +157,12 @@
   color: #92400e;
 }
 
+.inlineError {
+  color: #b91c1c;
+  font-size: 0.85rem;
+  margin-top: 0.35rem;
+}
+
 .svgBlock {
   border: 1px solid #e5e7eb;
   border-radius: 12px;

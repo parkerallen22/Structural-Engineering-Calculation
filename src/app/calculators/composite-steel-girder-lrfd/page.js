@@ -23,6 +23,9 @@ const TAB_LABELS = [
 const SIGN_CONVENTION_NOTE =
   'Sign convention: +M = sagging (typical midspan), −M = hogging (typical at supports). User enters −M as negative.';
 
+const SECTION_CONTIGUITY_TOLERANCE = 1e-3;
+const REBAR_BAR_OPTIONS = ['', '#3', '#4', '#5', '#6', '#7', '#8', '#9', '#10', '#11'];
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -48,12 +51,30 @@ function createDiaphragm() {
   return { id: crypto.randomUUID(), x_ft: null };
 }
 
-function createSectionLocation(sectionId, source = {}) {
+function createSectionLocateSegment(labelId = '', source = {}) {
   return {
     id: source.id ?? crypto.randomUUID(),
-    sectionId,
-    startX_ft: source.startX_ft ?? null,
-    endX_ft: source.endX_ft ?? null,
+    labelId,
+    startX: source.startX ?? '',
+    endX: source.endX ?? '',
+  };
+}
+
+function createDeckRebarGroup() {
+  return {
+    spacing: '',
+    primaryBar: '',
+    alternating: false,
+    secondaryBar: '',
+  };
+}
+
+function createDeckRebar() {
+  return {
+    longitudinalTop: createDeckRebarGroup(),
+    longitudinalBottom: createDeckRebarGroup(),
+    transverseTop: createDeckRebarGroup(),
+    transverseBottom: createDeckRebarGroup(),
   };
 }
 
@@ -129,7 +150,7 @@ function createInitialProject() {
         { id: crypto.randomUUID(), locationId: 'span-1', labelId: null },
         { id: crypto.randomUUID(), locationId: 'span-2', labelId: null },
       ],
-      sectionLocations: [createSectionLocation(null)],
+      sectionLocateSegments: [createSectionLocateSegment('')],
       spanStudLayouts: [],
       supportStudLayouts: [],
       studLayout: {
@@ -143,6 +164,7 @@ function createInitialProject() {
       },
       diaphragmLocations: [createDiaphragm()],
     },
+    deckRebar: createDeckRebar(),
     materials: {
       Fy_ksi: 50,
       fc_ksi: 4,
@@ -194,6 +216,72 @@ function resizeArray(source, targetLength, fallbackValue) {
     next.push(fallbackValue);
   }
   return next.slice(0, targetLength);
+}
+
+function normalizeDeckRebar(input = {}) {
+  const normalizeGroup = (group = {}) => ({
+    spacing: typeof group.spacing === 'string' ? group.spacing : toInputValue(group.spacing),
+    primaryBar: group.primaryBar ?? '',
+    alternating: Boolean(group.alternating),
+    secondaryBar: group.secondaryBar ?? '',
+  });
+
+  return {
+    longitudinalTop: normalizeGroup(input.longitudinalTop),
+    longitudinalBottom: normalizeGroup(input.longitudinalBottom),
+    transverseTop: normalizeGroup(input.transverseTop),
+    transverseBottom: normalizeGroup(input.transverseBottom),
+  };
+}
+
+function validateSectionLocateSegments(project) {
+  if (project.schedules.sectionConstant) {
+    return '';
+  }
+
+  const totalLength = project.geometry.spanLengths_ft.reduce((sum, span) => sum + toNumber(span), 0);
+  const segments = project.schedules.sectionLocateSegments || [];
+
+  if (!segments.length) {
+    return 'Add at least one section location segment.';
+  }
+
+  const normalized = [];
+  for (const segment of segments) {
+    const start = Number(segment.startX);
+    const end = Number(segment.endX);
+
+    if (segment.startX === '' || segment.endX === '' || !Number.isFinite(start) || !Number.isFinite(end)) {
+      return 'Each section location must have numeric start and end locations.';
+    }
+    if (start >= end - SECTION_CONTIGUITY_TOLERANCE) {
+      return 'Each section location must satisfy start < end.';
+    }
+    normalized.push({ start, end });
+  }
+
+  normalized.sort((a, b) => a.start - b.start);
+  if (Math.abs(normalized[0].start) > SECTION_CONTIGUITY_TOLERANCE) {
+    return `Section locations must start at 0 ft and cover the full length (${round(totalLength, 3)} ft) with no gaps or overlaps.`;
+  }
+
+  const lastEnd = normalized[normalized.length - 1].end;
+  if (Math.abs(lastEnd - totalLength) > SECTION_CONTIGUITY_TOLERANCE) {
+    return `Section locations must cover the full length (${round(totalLength, 3)} ft) with no gaps or overlaps. Check segment boundaries: expected 0–50, 50–110, 110–160 style contiguity.`;
+  }
+
+  for (let i = 0; i < normalized.length - 1; i += 1) {
+    if (Math.abs(normalized[i].end - normalized[i + 1].start) > SECTION_CONTIGUITY_TOLERANCE) {
+      return `Section locations must cover the full length (${round(totalLength, 3)} ft) with no gaps or overlaps. Check segment boundaries: expected 0–50, 50–110, 110–160 style contiguity.`;
+    }
+  }
+
+  const coveredLength = normalized.reduce((sum, segment) => sum + (segment.end - segment.start), 0);
+  if (Math.abs(coveredLength - totalLength) > SECTION_CONTIGUITY_TOLERANCE) {
+    return `Section locations must cover the full length (${round(totalLength, 3)} ft) with no gaps or overlaps. Check segment boundaries: expected 0–50, 50–110, 110–160 style contiguity.`;
+  }
+
+  return '';
 }
 
 function withLocationsAndDemands(project) {
@@ -309,15 +397,37 @@ function withLocationsAndDemands(project) {
       ? (project.schedules.sectionConstant ? [project.schedules.sectionLabels[0]] : project.schedules.sectionLabels)
       : [createSectionLabel('SEC-A')];
 
-  const existingSectionLocations = project.schedules?.sectionLocations || [];
-  const sectionLocations = sectionLabels.map((section, index) => {
-    const bySectionId = existingSectionLocations.find((row) => row.sectionId === section.id);
-    const byIndex = existingSectionLocations[index];
-    const source = bySectionId || byIndex || {};
-    const totalLength = spanLengths.reduce((sum, value) => sum + toNumber(value), 0);
-    const defaultRange = sectionLabels.length === 1 ? { startX_ft: 0, endX_ft: totalLength || null } : {};
-    return createSectionLocation(section.id, { ...defaultRange, ...source });
-  });
+  const totalLength = spanLengths.reduce((sum, value) => sum + toNumber(value), 0);
+  const legacySectionLocations = project.schedules?.sectionLocations || [];
+  const defaultLabelId = sectionLabels[0]?.id ?? '';
+  const migratedSegments = (project.schedules?.sectionLocateSegments || []).map((segment) =>
+    createSectionLocateSegment(segment.labelId || defaultLabelId, {
+      id: segment.id,
+      startX: segment.startX ?? toInputValue(segment.startX_ft),
+      endX: segment.endX ?? toInputValue(segment.endX_ft),
+    }),
+  );
+  const sectionLocateSegments = migratedSegments.length
+    ? migratedSegments
+    : legacySectionLocations.length
+      ? legacySectionLocations.map((row, index) => {
+          const fallbackStart = index === 0 ? '0' : '';
+          const fallbackEnd = index === 0 && totalLength ? String(totalLength) : '';
+          return createSectionLocateSegment(row.sectionId || defaultLabelId, {
+            id: row.id,
+            startX: toInputValue(row.startX_ft ?? fallbackStart),
+            endX: toInputValue(row.endX_ft ?? fallbackEnd),
+          });
+        })
+      : [createSectionLocateSegment(defaultLabelId, { startX: '0', endX: totalLength ? String(totalLength) : '' })];
+
+  const normalizedSegments = sectionLocateSegments.map((segment, index) => ({
+    ...segment,
+    labelId:
+      segment.labelId && sectionLabels.some((section) => section.id === segment.labelId)
+        ? segment.labelId
+        : sectionLabels[index]?.id || defaultLabelId || '',
+  }));
 
   return {
     ...project,
@@ -337,12 +447,13 @@ function withLocationsAndDemands(project) {
       },
       sectionAssignments,
       sectionLabels,
-      sectionLocations,
+      sectionLocateSegments: normalizedSegments,
       diaphragmLocations: ((project.schedules?.diaphragmLocations || []).length
         ? project.schedules?.diaphragmLocations
         : [createDiaphragm()]
       ),
     },
+    deckRebar: normalizeDeckRebar(project.deckRebar || createDeckRebar()),
     demandByLocation: nextDemand,
     comboOverridesByLocation: nextOverrides,
   };
@@ -465,6 +576,7 @@ export default function CompositeSteelGirderLrfdPage() {
   const [project, setProject] = useState(() => withLocationsAndDemands(createInitialProject()));
   const [activeTab, setActiveTab] = useState(TAB_LABELS[0]);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [sectionLocateError, setSectionLocateError] = useState('');
 
   useEffect(() => {
     const raw = window.localStorage.getItem(STORAGE_BASE_KEY);
@@ -525,6 +637,22 @@ export default function CompositeSteelGirderLrfdPage() {
   };
 
   const allTabsReadOnly = activeTab !== 'Inputs' && !project.settings.allowEditingInputsOnOtherTabs;
+
+  const runSectionLocateValidation = (targetProject = project) => {
+    const error = validateSectionLocateSegments(targetProject);
+    setSectionLocateError(error);
+    return !error;
+  };
+
+  const deckRebarSecondaryErrors = useMemo(() => {
+    const groups = project.deckRebar || createDeckRebar();
+    return {
+      longitudinalTop: groups.longitudinalTop.alternating && !groups.longitudinalTop.secondaryBar,
+      longitudinalBottom: groups.longitudinalBottom.alternating && !groups.longitudinalBottom.secondaryBar,
+      transverseTop: groups.transverseTop.alternating && !groups.transverseTop.secondaryBar,
+      transverseBottom: groups.transverseBottom.alternating && !groups.transverseBottom.secondaryBar,
+    };
+  }, [project.deckRebar]);
 
   const renderResultsTab = (tabName) => {
     const locations = project.derived.locations;
@@ -697,7 +825,13 @@ export default function CompositeSteelGirderLrfdPage() {
             key={tab}
             type="button"
             className={`${styles.tab} ${activeTab === tab ? styles.tabActive : ''}`}
-            onClick={() => setActiveTab(tab)}
+            onClick={() => {
+              if (tab !== 'Inputs' && !runSectionLocateValidation()) {
+                setActiveTab('Inputs');
+                return;
+              }
+              setActiveTab(tab);
+            }}
           >
             {tab}
           </button>
@@ -884,9 +1018,6 @@ export default function CompositeSteelGirderLrfdPage() {
                       ...current.schedules,
                       sectionConstant: event.target.checked,
                       sectionLabels: event.target.checked ? [current.schedules.sectionLabels[0] || createSectionLabel('SEC-A')] : current.schedules.sectionLabels,
-                      sectionLocations: event.target.checked
-                        ? [current.schedules.sectionLocations?.[0] || createSectionLocation(current.schedules.sectionLabels?.[0]?.id || null)]
-                        : current.schedules.sectionLocations,
                     },
                   }))
                 }
@@ -922,7 +1053,11 @@ export default function CompositeSteelGirderLrfdPage() {
                             schedules: {
                               ...current.schedules,
                               sectionLabels: current.schedules.sectionLabels.filter((entry) => entry.id !== section.id),
-                              sectionLocations: (current.schedules.sectionLocations || []).filter((entry) => entry.sectionId !== section.id),
+                              sectionLocateSegments: (current.schedules.sectionLocateSegments || []).map((segment) =>
+                                segment.labelId === section.id
+                                  ? { ...segment, labelId: current.schedules.sectionLabels.find((entry) => entry.id !== section.id)?.id || '' }
+                                  : segment,
+                              ),
                             },
                           }))
                         }
@@ -946,7 +1081,6 @@ export default function CompositeSteelGirderLrfdPage() {
                       schedules: {
                         ...current.schedules,
                         sectionLabels: [...current.schedules.sectionLabels, nextSection],
-                        sectionLocations: [...(current.schedules.sectionLocations || []), createSectionLocation(nextSection.id)],
                       },
                     };
                   })
@@ -959,56 +1093,117 @@ export default function CompositeSteelGirderLrfdPage() {
             {!project.schedules.sectionConstant && (
               <div>
                 <h4>Locate Sections</h4>
+                {sectionLocateError && <div className={`${styles.callout} ${styles.warning}`}>{sectionLocateError}</div>}
                 <div className={styles.tableWrap}>
                   <table className={styles.table}>
-                    <thead><tr><th>Section Name</th><th>Start Location</th><th>End Location</th></tr></thead>
+                    <thead><tr><th>Section Label</th><th>Start Location</th><th>End Location</th><th /></tr></thead>
                     <tbody>
-                      {(project.schedules.sectionLocations || []).map((locationRow) => {
-                        const section = project.schedules.sectionLabels.find((entry) => entry.id === locationRow.sectionId);
-                        const start = toNumber(locationRow.startX_ft, NaN);
-                        const end = toNumber(locationRow.endX_ft, NaN);
+                      {(project.schedules.sectionLocateSegments || []).map((locationRow) => {
+                        const start = Number(locationRow.startX);
+                        const end = Number(locationRow.endX);
                         const hasRangeError = Number.isFinite(start) && Number.isFinite(end) && start >= end;
                         return (
                         <tr key={locationRow.id}>
-                          <td>{section?.name || 'Untitled section'}</td>
                           <td>
-                            <NumericInput
-                              value={locationRow.startX_ft}
-                              onCommit={(value) =>
+                            <select
+                              value={locationRow.labelId}
+                              onChange={(event) =>
                                 updateProject((current) => ({
                                   ...current,
                                   schedules: {
                                     ...current.schedules,
-                                    sectionLocations: (current.schedules.sectionLocations || []).map((entry) =>
-                                      entry.id === locationRow.id ? { ...entry, startX_ft: value } : entry,
+                                    sectionLocateSegments: (current.schedules.sectionLocateSegments || []).map((entry) =>
+                                      entry.id === locationRow.id ? { ...entry, labelId: event.target.value } : entry,
                                     ),
                                   },
                                 }))
                               }
+                            >
+                              {!project.schedules.sectionLabels.length && <option value="">No labels defined</option>}
+                              {project.schedules.sectionLabels.map((label) => (
+                                <option key={label.id} value={label.id}>{label.name || 'Untitled section'}</option>
+                              ))}
+                            </select>
+                          </td>
+                          <td>
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={locationRow.startX}
+                              onChange={(event) =>
+                                updateProject((current) => ({
+                                  ...current,
+                                  schedules: {
+                                    ...current.schedules,
+                                    sectionLocateSegments: (current.schedules.sectionLocateSegments || []).map((entry) =>
+                                      entry.id === locationRow.id ? { ...entry, startX: event.target.value } : entry,
+                                    ),
+                                  },
+                                }))
+                              }
+                              onBlur={() => runSectionLocateValidation()}
                             />
                           </td>
                           <td>
-                            <NumericInput
-                              value={locationRow.endX_ft}
-                              onCommit={(value) =>
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={locationRow.endX}
+                              onChange={(event) =>
                                 updateProject((current) => ({
                                   ...current,
                                   schedules: {
                                     ...current.schedules,
-                                    sectionLocations: (current.schedules.sectionLocations || []).map((entry) =>
-                                      entry.id === locationRow.id ? { ...entry, endX_ft: value } : entry,
+                                    sectionLocateSegments: (current.schedules.sectionLocateSegments || []).map((entry) =>
+                                      entry.id === locationRow.id ? { ...entry, endX: event.target.value } : entry,
                                     ),
                                   },
                                 }))
                               }
+                              onBlur={() => runSectionLocateValidation()}
                             />
                             {hasRangeError && <div className={styles.muted}>Start location should be less than end location.</div>}
+                          </td>
+                          <td>
+                            <button
+                              type="button"
+                              className={styles.secondaryButton}
+                              onClick={() =>
+                                updateProject((current) => ({
+                                  ...current,
+                                  schedules: {
+                                    ...current.schedules,
+                                    sectionLocateSegments: current.schedules.sectionLocateSegments.filter((entry) => entry.id !== locationRow.id),
+                                  },
+                                }))
+                              }
+                            >
+                              Remove
+                            </button>
                           </td>
                         </tr>
                       )})}
                     </tbody>
                   </table>
                 </div>
+                <button
+                  type="button"
+                  className={styles.secondaryButton}
+                  onClick={() =>
+                    updateProject((current) => ({
+                      ...current,
+                      schedules: {
+                        ...current.schedules,
+                        sectionLocateSegments: [
+                          ...(current.schedules.sectionLocateSegments || []),
+                          createSectionLocateSegment(current.schedules.sectionLabels[0]?.id || ''),
+                        ],
+                      },
+                    }))
+                  }
+                >
+                  Add location
+                </button>
               </div>
             )}
           </section>
@@ -1082,8 +1277,6 @@ export default function CompositeSteelGirderLrfdPage() {
               <h4>Steel framing plan</h4>
               <svg viewBox="0 0 900 260" width="100%" height="260" role="img" aria-label="Steel framing plan with girders and diaphragms">
                 <rect x="0" y="0" width="900" height="260" fill="white" />
-                <line x1="70" y1="30" x2="70" y2="230" stroke="#111" strokeWidth="2" />
-                <text x="20" y="24" fontSize="12" fontWeight="700">x=0 (Abutment)</text>
                 {Array.from({ length: Math.max(1, toNumber(project.geometry.numberOfGirders, 5)) }, (_, i) => {
                   const count = Math.max(1, toNumber(project.geometry.numberOfGirders, 5));
                   const y = count === 1 ? 130 : 40 + (i * 180) / (count - 1);
@@ -1091,6 +1284,13 @@ export default function CompositeSteelGirderLrfdPage() {
                 })}
                 {(() => {
                   const totalLength = project.geometry.spanLengths_ft.reduce((sum, value) => sum + toNumber(value), 0) || 1;
+                  const cumulativePierMarkers = [];
+                  let running = 0;
+                  for (let i = 0; i < project.geometry.spanLengths_ft.length - 1; i += 1) {
+                    running += toNumber(project.geometry.spanLengths_ft[i]);
+                    cumulativePierMarkers.push({ label: `Pier ${i + 1}`, xValue: running });
+                  }
+
                   return (project.schedules.diaphragmLocations || []).map((row, idx) => {
                     const x = 70 + (Math.max(0, toNumber(row.x_ft, 0)) / totalLength) * 790;
                     return (
@@ -1099,10 +1299,119 @@ export default function CompositeSteelGirderLrfdPage() {
                         <text x={x + 4} y="50" fontSize="12" fill="#1d4ed8" fontWeight="700">D{idx + 1}</text>
                       </g>
                     );
-                  });
+                  }).concat(
+                    [{ label: 'Abutment 1', xValue: 0 }, ...cumulativePierMarkers, { label: 'Abutment 2', xValue: totalLength }].map((marker) => {
+                      const x = 70 + (Math.max(0, marker.xValue) / totalLength) * 790;
+                      return (
+                        <g key={`support-marker-${marker.label}`}>
+                          <line x1={x} y1="28" x2={x} y2="232" stroke="#111" strokeWidth="3" strokeDasharray="2 3" />
+                          <text x={x + 4} y="22" fontSize="12" fill="#111" fontWeight="700">{marker.label}</text>
+                        </g>
+                      );
+                    }),
+                  );
                 })()}
               </svg>
             </div>
+          </section>
+
+          <section className={styles.card}>
+            <h3 className={styles.sectionTitle}>Deck Rebar</h3>
+            {[
+              ['longitudinalTop', 'Longitudinal (Top)'],
+              ['longitudinalBottom', 'Longitudinal (Bottom)'],
+              ['transverseTop', 'Transverse (Top)'],
+              ['transverseBottom', 'Transverse (Bottom)'],
+            ].map(([groupKey, title]) => {
+              const group = project.deckRebar[groupKey];
+              const showSecondaryError = deckRebarSecondaryErrors[groupKey];
+              return (
+                <div className={styles.svgBlock} key={groupKey}>
+                  <h4>{title}</h4>
+                  <div className={styles.grid4}>
+                    <label className={styles.field}>
+                      Bar size (primary)
+                      <select
+                        value={group.primaryBar}
+                        onChange={(event) =>
+                          updateProject((current) => ({
+                            ...current,
+                            deckRebar: {
+                              ...current.deckRebar,
+                              [groupKey]: { ...current.deckRebar[groupKey], primaryBar: event.target.value },
+                            },
+                          }))
+                        }
+                      >
+                        <option value="">Select bar size</option>
+                        {REBAR_BAR_OPTIONS.filter(Boolean).map((option) => <option key={`${groupKey}-primary-${option}`} value={option}>{option}</option>)}
+                      </select>
+                    </label>
+                    <label className={styles.field}>
+                      Spacing (primary) (in)
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={group.spacing}
+                        onChange={(event) =>
+                          updateProject((current) => ({
+                            ...current,
+                            deckRebar: {
+                              ...current.deckRebar,
+                              [groupKey]: { ...current.deckRebar[groupKey], spacing: event.target.value },
+                            },
+                          }))
+                        }
+                      />
+                    </label>
+                  </div>
+                  <label className={styles.inlineCheckbox}>
+                    <input
+                      type="checkbox"
+                      checked={group.alternating}
+                      onChange={(event) =>
+                        updateProject((current) => ({
+                          ...current,
+                          deckRebar: {
+                            ...current.deckRebar,
+                            [groupKey]: { ...current.deckRebar[groupKey], alternating: event.target.checked },
+                          },
+                        }))
+                      }
+                    />
+                    Alternating bars
+                  </label>
+                  {group.alternating && (
+                    <>
+                      <div className={styles.grid4}>
+                        <label className={styles.field}>
+                          Bar size (secondary)
+                          <select
+                            value={group.secondaryBar || ''}
+                            onChange={(event) =>
+                              updateProject((current) => ({
+                                ...current,
+                                deckRebar: {
+                                  ...current.deckRebar,
+                                  [groupKey]: { ...current.deckRebar[groupKey], secondaryBar: event.target.value },
+                                },
+                              }))
+                            }
+                          >
+                            <option value="">Select bar size</option>
+                            {REBAR_BAR_OPTIONS.filter(Boolean).map((option) => <option key={`${groupKey}-secondary-${option}`} value={option}>{option}</option>)}
+                          </select>
+                        </label>
+                      </div>
+                      <div className={styles.muted}>
+                        {`${group.primaryBar || '#5'} @ ${group.spacing || '12'} in alternating with ${group.secondaryBar || '#6'} @ ${group.spacing || '12'} in → bar every ${group.spacing ? round(toNumber(group.spacing) / 2, 3) : '6'} in, alternating sizes`}
+                      </div>
+                      {showSecondaryError && <div className={styles.inlineError}>Secondary bar size is required when alternating bars is enabled.</div>}
+                    </>
+                  )}
+                </div>
+              );
+            })}
           </section>
 
           <section className={styles.card}>
