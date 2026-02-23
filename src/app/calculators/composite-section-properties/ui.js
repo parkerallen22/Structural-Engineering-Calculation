@@ -45,6 +45,15 @@ export function fmt(value, digits = 3) {
   });
 }
 
+export function fmtInput(value) {
+  if (value == null || Number.isNaN(value)) return '—';
+  const rounded = Math.round(Number(value) * 1000) / 1000;
+  return rounded.toLocaleString(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 3,
+  });
+}
+
 export function VarLabel({ base, sub, unit }) {
   return (
     <span className={styles.varLabel}>
@@ -139,22 +148,30 @@ export function parseDraft(draft) {
 
 export function getInputSummaryRows(input) {
   const region = input.negative;
+  const formatBarSummary = (mat) => {
+    const primary = `${mat.barSize} @ ${fmtInput(mat.spacing)}`;
+    if (!mat.alternatingBars) {
+      return primary;
+    }
+    return `${primary}, ${mat.altBarSize} @ ${fmtInput(mat.altSpacing)}`;
+  };
+
   return [
-    { key: 'D', label: <VarLabel base="D" />, value: fmt(region.D), unit: 'in' },
-    { key: 'tw', label: <VarLabel base="t" sub="w" />, value: fmt(region.tw), unit: 'in' },
-    { key: 'tfTop', label: <VarLabel base="t" sub="f,top" />, value: fmt(region.tfTop), unit: 'in' },
-    { key: 'bfTop', label: <VarLabel base="b" sub="f,top" />, value: fmt(region.bfTop), unit: 'in' },
-    { key: 'tfBot', label: <VarLabel base="t" sub="f,bot" />, value: fmt(region.tfBot), unit: 'in' },
-    { key: 'bfBot', label: <VarLabel base="b" sub="f,bot" />, value: fmt(region.bfBot), unit: 'in' },
-    { key: 'tHaunch', label: <VarLabel base="t" sub="haunch" />, value: fmt(region.tHaunch), unit: 'in' },
-    { key: 'tSlab', label: <VarLabel base="t" sub="slab" />, value: fmt(region.tSlab), unit: 'in' },
-    { key: 'bEff', label: <VarLabel base="b" sub="eff" />, value: fmt(region.bEff), unit: 'in' },
-    { key: 'Es', label: <VarLabel base="E" sub="s" />, value: fmt(input.materials.Es), unit: 'ksi' },
-    { key: 'fc', label: <VarLabel base="f'c" />, value: fmt(input.materials.fc), unit: 'ksi' },
-    { key: 'topBars', label: 'Top bars', value: `${region.rebarTop.barSize} @ ${fmt(region.rebarTop.spacing)}`, unit: 'in' },
-    { key: 'bottomBars', label: 'Bottom bars', value: `${region.rebarBottom.barSize} @ ${fmt(region.rebarBottom.spacing)}`, unit: 'in' },
-    { key: 'topClear', label: 'Top clear cover', value: fmt(region.rebarTop.clearDistance), unit: 'in' },
-    { key: 'bottomClear', label: 'Bottom clear cover', value: fmt(region.rebarBottom.clearDistance), unit: 'in' },
+    { key: 'D', label: <VarLabel base="D" />, value: fmtInput(region.D), unit: 'in' },
+    { key: 'tw', label: <VarLabel base="t" sub="w" />, value: fmtInput(region.tw), unit: 'in' },
+    { key: 'tfTop', label: <VarLabel base="t" sub="f,top" />, value: fmtInput(region.tfTop), unit: 'in' },
+    { key: 'bfTop', label: <VarLabel base="b" sub="f,top" />, value: fmtInput(region.bfTop), unit: 'in' },
+    { key: 'tfBot', label: <VarLabel base="t" sub="f,bot" />, value: fmtInput(region.tfBot), unit: 'in' },
+    { key: 'bfBot', label: <VarLabel base="b" sub="f,bot" />, value: fmtInput(region.bfBot), unit: 'in' },
+    { key: 'tHaunch', label: <VarLabel base="t" sub="haunch" />, value: fmtInput(region.tHaunch), unit: 'in' },
+    { key: 'tSlab', label: <VarLabel base="t" sub="slab" />, value: fmtInput(region.tSlab), unit: 'in' },
+    { key: 'bEff', label: <VarLabel base="b" sub="eff" />, value: fmtInput(region.bEff), unit: 'in' },
+    { key: 'Es', label: <VarLabel base="E" sub="s" />, value: fmtInput(input.materials.Es), unit: 'ksi' },
+    { key: 'fc', label: <VarLabel base="f'c" />, value: fmtInput(input.materials.fc), unit: 'ksi' },
+    { key: 'topBars', label: 'Top bars', value: formatBarSummary(region.rebarTop), unit: 'in' },
+    { key: 'bottomBars', label: 'Bottom bars', value: formatBarSummary(region.rebarBottom), unit: 'in' },
+    { key: 'topClear', label: 'Top clear cover', value: fmtInput(region.rebarTop.clearDistance), unit: 'in' },
+    { key: 'bottomClear', label: 'Bottom clear cover', value: fmtInput(region.rebarBottom.clearDistance), unit: 'in' },
   ];
 }
 

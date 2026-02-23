@@ -352,6 +352,8 @@ function computeCrackedNegative(region, modularRatio, bars) {
     return sum + (component.iLocal || 0) + (component.area * d ** 2);
   }, 0);
 
+  const detailRows = buildExpandedRows(components, neutralAxis);
+
   return {
     neutralAxis,
     components,
@@ -361,6 +363,14 @@ function computeCrackedNegative(region, modularRatio, bars) {
       bottomOfSteel: safeDivide(iCracked, Math.abs(neutralAxis)),
     },
     compressionDepth,
+    detail: {
+      rows: detailRows,
+      totals: {
+        area: components.reduce((sum, component) => sum + component.area, 0),
+        ayb: components.reduce((sum, component) => sum + (component.area * component.y), 0),
+        i: detailRows.reduce((sum, row) => sum + row.ioPlusAd2, 0),
+      },
+    },
   };
 }
 
@@ -441,10 +451,10 @@ export function computeSectionProps(input) {
   ];
 
   const regionsToRun = input.positiveSameAsNegative
-    ? [{ key: 'both', label: 'Both regions', data: input.negative }]
+    ? [{ key: 'both', label: 'Both Regions', data: input.negative }]
     : [
-      { key: 'negative', label: 'Negative region', data: input.negative },
-      { key: 'positive', label: 'Positive region', data: input.positive },
+      { key: 'negative', label: 'Negative Region', data: input.negative },
+      { key: 'positive', label: 'Positive Region', data: input.positive },
     ];
 
   const output = {
