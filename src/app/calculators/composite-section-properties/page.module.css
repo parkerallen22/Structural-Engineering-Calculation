@@ -98,7 +98,7 @@
   border: 1px solid #dbe4ef;
   background: #fff;
   box-shadow: none;
-  overflow: auto;
+  overflow: visible;
   max-height: 1800px;
 }
 
@@ -125,17 +125,22 @@
 .sectionSketchScroller {
   width: 100%;
   overflow-x: auto;
-  overflow-y: hidden;
-  padding-bottom: 0.4rem;
+  overflow-y: visible;
+  padding: 0 0 0.4rem;
+  display: flex;
+  justify-content: center;
 }
 
+
 .sectionSketch {
-  width: 1100px;
-  min-width: 1100px;
-  height: 650px;
+  width: min(100%, 1120px);
+  min-width: 960px;
+  height: auto;
+  aspect-ratio: 1120 / 700;
   display: block;
   overflow: visible;
 }
+
 
 .dimensionLine {
   stroke: #111827;
