@@ -28,7 +28,20 @@ function nowIso() {
 }
 
 function createEmptyRangeRow() {
-  return { id: crypto.randomUUID(), startX_ft: 0, endX_ft: 0, label: '' };
+  return { id: crypto.randomUUID(), startX_ft: null, endX_ft: null, label: '' };
+}
+
+function createSectionLabel(name = '') {
+  return {
+    id: crypto.randomUUID(),
+    name,
+    D_in: null,
+    tw_in: null,
+    tf_top_in: null,
+    bf_top_in: null,
+    tf_bot_in: null,
+    bf_bot_in: null,
+  };
 }
 
 function createInitialProject() {
@@ -62,9 +75,15 @@ function createInitialProject() {
       ],
     },
     schedules: {
-      sectionSchedule: [createEmptyRangeRow()],
-      studSchedule: [createEmptyRangeRow()],
-      bracingSchedule: [{ id: crypto.randomUUID(), startX_ft: 0, endX_ft: 0, Lb_ft: 0, notes: '' }],
+      sectionConstant: false,
+      sectionLabels: [createSectionLabel('SEC-A')],
+      sectionAssignments: [
+        { id: crypto.randomUUID(), locationId: 'span-1', labelId: null },
+        { id: crypto.randomUUID(), locationId: 'span-2', labelId: null },
+      ],
+      spanStudLayouts: [],
+      supportStudLayouts: [],
+      diaphragmLocations: [{ id: crypto.randomUUID(), x_ft: null, note: '' }],
     },
     materials: {
       Fy_ksi: 50,
@@ -91,8 +110,24 @@ function toNumber(value, fallback = 0) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function toNullableNumber(value) {
+  if (value === '' || value === null || typeof value === 'undefined') {
+    return null;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function toInputValue(value) {
+  return value === null || typeof value === 'undefined' ? '' : String(value);
+}
+
 function round(value, digits = 3) {
-  return Number(value.toFixed(digits));
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return 0;
+  }
+  return Number(numeric.toFixed(digits));
 }
 
 function resizeArray(source, targetLength, fallbackValue) {
@@ -112,7 +147,7 @@ function withLocationsAndDemands(project) {
   for (let i = 0; i <= project.geometry.numberOfSpans; i += 1) {
     const isFirst = i === 0;
     const isLast = i === project.geometry.numberOfSpans;
-    const name = isFirst ? 'Abutment A' : isLast ? 'Abutment B' : `Pier ${i}`;
+    const name = isFirst ? 'Abutment A' : isLast ? 'Abutment B' : `P${i}`;
 
     supportLocations.push({
       id: `support-${i}`,
@@ -129,7 +164,7 @@ function withLocationsAndDemands(project) {
 
       spanLocations.push({
         id: `span-${i + 1}`,
-        name: `Span ${i + 1} @ ${round(xInSpan, 3)} ft`,
+        name: `Span ${i + 1}`,
         type: 'span',
         x_global_ft: round(runningX + xInSpan, 3),
         spanIndex: i,
@@ -155,10 +190,10 @@ function withLocationsAndDemands(project) {
   locations.forEach((location) => {
     if (!nextDemand[location.id]) {
       nextDemand[location.id] = {
-        DC1: { M_kft: 0, V_k: 0 },
-        DC2: { M_kft: 0, V_k: 0 },
-        DW: { M_kft: 0, V_k: 0 },
-        LL_IM: { M_kft: 0, V_k: 0 },
+        DC1: { M_kft: null, V_k: null },
+        DC2: { M_kft: null, V_k: null },
+        DW: { M_kft: null, V_k: null },
+        LL_IM: { M_kft: null, V_k: null },
       };
     }
     if (!nextOverrides[location.id]) {
@@ -166,9 +201,45 @@ function withLocationsAndDemands(project) {
     }
   });
 
+
+  const spanStudLayouts = Array.from({ length: project.geometry.numberOfSpans }, (_, index) => ({
+    id: `span-${index + 1}`,
+    name: `Span ${index + 1}`,
+    studsPerRow: project.schedules?.spanStudLayouts?.[index]?.studsPerRow ?? null,
+    numberOfRows: project.schedules?.spanStudLayouts?.[index]?.numberOfRows ?? null,
+    spacing_in: project.schedules?.spanStudLayouts?.[index]?.spacing_in ?? null,
+    diameter_in: project.schedules?.spanStudLayouts?.[index]?.diameter_in ?? null,
+    Fy_ksi: project.schedules?.spanStudLayouts?.[index]?.Fy_ksi ?? null,
+  }));
+
+  const supportNames = ['Abutment A', ...Array.from({ length: Math.max(project.geometry.numberOfSpans - 1, 0) }, (_, i) => `P${i + 1}`), 'Abutment B'];
+  const supportStudLayouts = supportNames.map((name, index) => ({
+    id: `support-${index}`,
+    name,
+    studsPerRow: project.schedules?.supportStudLayouts?.[index]?.studsPerRow ?? null,
+    numberOfRows: project.schedules?.supportStudLayouts?.[index]?.numberOfRows ?? null,
+    spacing_in: project.schedules?.supportStudLayouts?.[index]?.spacing_in ?? null,
+    diameter_in: project.schedules?.supportStudLayouts?.[index]?.diameter_in ?? null,
+    Fy_ksi: project.schedules?.supportStudLayouts?.[index]?.Fy_ksi ?? null,
+  }));
+
+  const sectionAssignments = spanLocations.map((location, index) => ({
+    id: location.id,
+    locationId: location.id,
+    labelId: project.schedules?.sectionAssignments?.[index]?.labelId ?? null,
+  }));
+
   return {
     ...project,
     derived: { locations },
+    schedules: {
+      ...project.schedules,
+      spanStudLayouts,
+      supportStudLayouts,
+      sectionAssignments,
+      sectionLabels: project.schedules?.sectionLabels?.length ? project.schedules.sectionLabels : [createSectionLabel('SEC-A')],
+      diaphragmLocations: (project.schedules?.diaphragmLocations || []).slice().sort((a, b) => toNumber(a.x_ft, 1e9) - toNumber(b.x_ft, 1e9)),
+    },
     demandByLocation: nextDemand,
     comboOverridesByLocation: nextOverrides,
   };
@@ -248,6 +319,45 @@ function PlaceholderSketch({ title, children }) {
   );
 }
 
+function Symbol({ label, sub }) {
+  return (
+    <span>
+      {label}
+      <sub>{sub}</sub>
+    </span>
+  );
+}
+
+function NumericInput({ value, onCommit, disabled = false }) {
+  const [draft, setDraft] = useState(toInputValue(value));
+
+  useEffect(() => {
+    setDraft(toInputValue(value));
+  }, [value]);
+
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      value={draft}
+      disabled={disabled}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={() => {
+        const parsed = toNullableNumber(draft);
+        onCommit(parsed);
+        setDraft(toInputValue(parsed));
+      }}
+    />
+  );
+}
+
+function formatDisplay(value, digits = 3) {
+  if (value === null || typeof value === 'undefined' || Number.isNaN(Number(value))) {
+    return '—';
+  }
+  return round(Number(value), digits);
+}
+
 export default function CompositeSteelGirderLrfdPage() {
   const [project, setProject] = useState(() => withLocationsAndDemands(createInitialProject()));
   const [activeTab, setActiveTab] = useState(TAB_LABELS[0]);
@@ -304,7 +414,7 @@ export default function CompositeSteelGirderLrfdPage() {
           ...current.demandByLocation[locationId],
           [componentKey]: {
             ...current.demandByLocation[locationId][componentKey],
-            [field]: toNumber(value),
+            [field]: value,
           },
         },
       },
@@ -498,26 +608,16 @@ export default function CompositeSteelGirderLrfdPage() {
             <div className={styles.grid4}>
               <label className={styles.field}>
                 Number of spans
-                <input
-                  type="number"
-                  min={1}
+                <NumericInput
                   value={project.geometry.numberOfSpans}
-                  onChange={(event) => {
-                    const nextCount = Math.max(1, Math.floor(toNumber(event.target.value, 1)));
+                  onCommit={(value) => {
+                    const nextCount = Math.max(1, Math.floor(toNumber(value, 1)));
                     updateProject((current) => {
-                      const nextSpans = resizeArray(current.geometry.spanLengths_ft, nextCount, 100);
-                      const nextPoints = resizeArray(
-                        current.geometry.spanPoints,
-                        nextCount,
-                        { momentAtMid: true, xPrime_ft: 50 },
-                      ).map((point, index) => {
-                        const spanL = nextSpans[index] || 0;
-                        return {
-                          ...point,
-                          xPrime_ft: point.momentAtMid ? spanL / 2 : point.xPrime_ft,
-                        };
+                      const nextSpans = resizeArray(current.geometry.spanLengths_ft, nextCount, null);
+                      const nextPoints = resizeArray(current.geometry.spanPoints, nextCount, { momentAtMid: true, xPrime_ft: null }).map((point, index) => {
+                        const spanL = toNumber(nextSpans[index], 0);
+                        return { ...point, xPrime_ft: point.momentAtMid ? spanL / 2 : point.xPrime_ft };
                       });
-
                       return {
                         ...current,
                         geometry: {
@@ -535,36 +635,21 @@ export default function CompositeSteelGirderLrfdPage() {
 
               <label className={styles.field}>
                 Skew (deg)
-                <input
-                  type="number"
-                  value={project.geometry.skew_deg}
-                  onChange={(event) =>
-                    updateProject((current) => ({
-                      ...current,
-                      geometry: { ...current.geometry, skew_deg: toNumber(event.target.value) },
-                    }))
-                  }
-                />
+                <NumericInput value={project.geometry.skew_deg} onCommit={(value) => updateProject((current) => ({ ...current, geometry: { ...current.geometry, skew_deg: value } }))} />
               </label>
 
               <label className={styles.field}>
                 Number of girders
-                <input
-                  type="number"
-                  min={1}
+                <NumericInput
                   value={project.geometry.numberOfGirders}
-                  onChange={(event) => {
-                    const girders = Math.max(1, Math.floor(toNumber(event.target.value, 1)));
+                  onCommit={(value) => {
+                    const girders = Math.max(1, Math.floor(toNumber(value, 1)));
                     updateProject((current) => ({
                       ...current,
                       geometry: {
                         ...current.geometry,
                         numberOfGirders: girders,
-                        spacingArray_ft: resizeArray(
-                          current.geometry.spacingArray_ft,
-                          Math.max(0, girders - 1),
-                          current.geometry.spacing_ft,
-                        ),
+                        spacingArray_ft: resizeArray(current.geometry.spacingArray_ft, Math.max(0, girders - 1), current.geometry.spacing_ft),
                       },
                     }));
                   }}
@@ -572,16 +657,7 @@ export default function CompositeSteelGirderLrfdPage() {
               </label>
 
               <label className={styles.inlineCheckbox}>
-                <input
-                  type="checkbox"
-                  checked={project.geometry.constantSpacing}
-                  onChange={(event) =>
-                    updateProject((current) => ({
-                      ...current,
-                      geometry: { ...current.geometry, constantSpacing: event.target.checked },
-                    }))
-                  }
-                />
+                <input type="checkbox" checked={project.geometry.constantSpacing} onChange={(event) => updateProject((current) => ({ ...current, geometry: { ...current.geometry, constantSpacing: event.target.checked } }))} />
                 Constant spacing
               </label>
             </div>
@@ -591,28 +667,18 @@ export default function CompositeSteelGirderLrfdPage() {
               {project.geometry.spanLengths_ft.map((span, index) => (
                 <label key={`span-${index}`} className={styles.field}>
                   Span {index + 1}
-                  <input
-                    type="number"
+                  <NumericInput
                     value={span}
-                    onChange={(event) =>
+                    onCommit={(value) =>
                       updateProject((current) => {
                         const next = [...current.geometry.spanLengths_ft];
-                        next[index] = toNumber(event.target.value);
-
+                        next[index] = value;
                         const nextPoints = [...current.geometry.spanPoints];
                         const point = nextPoints[index];
                         if (point?.momentAtMid) {
-                          nextPoints[index] = { ...point, xPrime_ft: next[index] / 2 };
+                          nextPoints[index] = { ...point, xPrime_ft: toNumber(value, 0) / 2 };
                         }
-
-                        return {
-                          ...current,
-                          geometry: {
-                            ...current.geometry,
-                            spanLengths_ft: next,
-                            spanPoints: nextPoints,
-                          },
-                        };
+                        return { ...current, geometry: { ...current.geometry, spanLengths_ft: next, spanPoints: nextPoints } };
                       })
                     }
                   />
@@ -624,22 +690,17 @@ export default function CompositeSteelGirderLrfdPage() {
             {project.geometry.constantSpacing ? (
               <label className={styles.field}>
                 Constant spacing (ft)
-                <input
-                  type="number"
+                <NumericInput
                   value={project.geometry.spacing_ft}
-                  onChange={(event) =>
+                  onCommit={(value) =>
                     updateProject((current) => {
-                      const spacing = toNumber(event.target.value);
+                      const spacing = value;
                       return {
                         ...current,
                         geometry: {
                           ...current.geometry,
                           spacing_ft: spacing,
-                          spacingArray_ft: resizeArray(
-                            current.geometry.spacingArray_ft,
-                            Math.max(0, current.geometry.numberOfGirders - 1),
-                            spacing,
-                          ).map(() => spacing),
+                          spacingArray_ft: resizeArray(current.geometry.spacingArray_ft, Math.max(0, current.geometry.numberOfGirders - 1), spacing).map(() => spacing),
                         },
                       };
                     })
@@ -648,31 +709,16 @@ export default function CompositeSteelGirderLrfdPage() {
               </label>
             ) : (
               <div className={styles.grid4}>
-                {resizeArray(
-                  project.geometry.spacingArray_ft,
-                  Math.max(0, project.geometry.numberOfGirders - 1),
-                  project.geometry.spacing_ft,
-                ).map((value, index) => (
+                {resizeArray(project.geometry.spacingArray_ft, Math.max(0, project.geometry.numberOfGirders - 1), project.geometry.spacing_ft).map((value, index) => (
                   <label className={styles.field} key={`spacing-${index}`}>
                     Between Girder {index + 1} & {index + 2}
-                    <input
-                      type="number"
+                    <NumericInput
                       value={value}
-                      onChange={(event) =>
+                      onCommit={(nextValue) =>
                         updateProject((current) => {
-                          const next = resizeArray(
-                            current.geometry.spacingArray_ft,
-                            Math.max(0, current.geometry.numberOfGirders - 1),
-                            current.geometry.spacing_ft,
-                          );
-                          next[index] = toNumber(event.target.value);
-                          return {
-                            ...current,
-                            geometry: {
-                              ...current.geometry,
-                              spacingArray_ft: next,
-                            },
-                          };
+                          const next = resizeArray(current.geometry.spacingArray_ft, Math.max(0, current.geometry.numberOfGirders - 1), current.geometry.spacing_ft);
+                          next[index] = nextValue;
+                          return { ...current, geometry: { ...current.geometry, spacingArray_ft: next } };
                         })
                       }
                     />
@@ -681,245 +727,164 @@ export default function CompositeSteelGirderLrfdPage() {
               </div>
             )}
 
-            <h4>Span location points: Span i @ x′</h4>
-            <div className={styles.tableWrap}>
-              <table className={styles.table}>
-                <thead>
-                  <tr>
-                    <th>Span</th>
-                    <th>Length (ft)</th>
-                    <th>Moment @ L/2</th>
-                    <th>x′ from left support (ft)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {project.geometry.spanPoints.map((point, index) => {
-                    const spanLength = project.geometry.spanLengths_ft[index] || 0;
-                    const xPrime = point.momentAtMid ? spanLength / 2 : point.xPrime_ft;
+            <PlaceholderSketch title="Elevation diagram (dynamic)">
+              <svg viewBox="0 0 900 220" width="100%" height="220" role="img" aria-label="Bridge elevation">
+                <rect x="0" y="0" width="900" height="220" fill="white" />
+                <line x1="40" y1="100" x2="860" y2="100" stroke="black" strokeWidth="3" />
+                {(() => {
+                  const total = project.geometry.spanLengths_ft.reduce((sum, value) => sum + toNumber(value), 0) || 1;
+                  let cursor = 40;
+                  return project.geometry.spanLengths_ft.map((span, index) => {
+                    const width = (toNumber(span) / total) * 820;
+                    const supportX = cursor;
+                    cursor += width;
                     return (
-                      <tr key={`point-${index}`}>
-                        <td>Span {index + 1}</td>
-                        <td>{spanLength}</td>
-                        <td>
-                          <input
-                            type="checkbox"
-                            checked={point.momentAtMid}
-                            onChange={(event) =>
-                              updateProject((current) => {
-                                const next = [...current.geometry.spanPoints];
-                                next[index] = {
-                                  ...next[index],
-                                  momentAtMid: event.target.checked,
-                                  xPrime_ft: event.target.checked
-                                    ? (current.geometry.spanLengths_ft[index] || 0) / 2
-                                    : next[index].xPrime_ft,
-                                };
-                                return {
-                                  ...current,
-                                  geometry: { ...current.geometry, spanPoints: next },
-                                };
-                              })
-                            }
-                          />
-                        </td>
-                        <td>
-                          <input
-                            type="number"
-                            value={xPrime}
-                            disabled={point.momentAtMid}
-                            onChange={(event) =>
-                              updateProject((current) => {
-                                const next = [...current.geometry.spanPoints];
-                                next[index] = {
-                                  ...next[index],
-                                  xPrime_ft: toNumber(event.target.value),
-                                };
-                                return {
-                                  ...current,
-                                  geometry: { ...current.geometry, spanPoints: next },
-                                };
-                              })
-                            }
-                          />
-                        </td>
-                      </tr>
+                      <g key={`span-svg-${index}`}>
+                        <polygon points={`${supportX},140 ${supportX - 12},170 ${supportX + 12},170`} fill="#d1d5db" stroke="black" />
+                        <text x={supportX + width / 2 - 28} y="86" fontSize="14" fontWeight="700">L{index + 1}={formatDisplay(span)} ft</text>
+                        <line x1={supportX} y1="115" x2={supportX + width} y2="115" stroke="#111" strokeWidth="1" />
+                      </g>
                     );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                  });
+                })()}
+                <polygon points="860,140 848,170 872,170" fill="#d1d5db" stroke="black" />
+                <text x="40" y="200" fontSize="14" fontWeight="700">
+                  Skew: {formatDisplay(project.geometry.skew_deg)}° | Girders: {formatDisplay(project.geometry.numberOfGirders)}
+                </text>
+              </svg>
+            </PlaceholderSketch>
 
-            <div className={styles.callout}>{project.meta.signConventionNote}</div>
+            <PlaceholderSketch title="Bridge Cross Section">
+              <svg viewBox="0 0 820 230" width="100%" height="230" role="img" aria-label="Bridge cross section">
+                <rect width="820" height="230" fill="white" />
+                <path d="M60 70 Q410 30 760 70 L760 88 L60 88 Z" fill="#e5e7eb" stroke="black" strokeWidth="2" />
+                {Array.from({ length: Math.max(1, toNumber(project.geometry.numberOfGirders, 1)) }, (_, i) => {
+                  const count = Math.max(1, toNumber(project.geometry.numberOfGirders, 1));
+                  const x = count === 1 ? 410 : 80 + (i * 680) / (count - 1);
+                  return <rect key={`girder-${i}`} x={x - 9} y="88" width="18" height="106" fill="#9ca3af" stroke="black" strokeWidth="2" />;
+                })}
+                <text x="60" y="210" fontSize="16" fontWeight="700">Girders shown: {formatDisplay(project.geometry.numberOfGirders, 0)}</text>
+              </svg>
+            </PlaceholderSketch>
           </section>
 
           <section className={styles.card}>
-            <h3 className={styles.sectionTitle}>Section / Stud / Bracing schedules</h3>
-            <p className={styles.muted}>{project.meta.coordinateNote}</p>
+            <h3 className={styles.sectionTitle}>Section Schedule</h3>
+            <label className={styles.inlineCheckbox}>
+              <input type="checkbox" checked={project.schedules.sectionConstant} onChange={(event) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, sectionConstant: event.target.checked } }))} />
+              Section constant along girder
+            </label>
 
-            {[
-              { key: 'sectionSchedule', title: 'Section schedule', cols: ['startX_ft', 'endX_ft', 'label'] },
-              { key: 'studSchedule', title: 'Stud schedule', cols: ['startX_ft', 'endX_ft', 'label'] },
-            ].map((group) => (
-              <div key={group.key}>
-                <h4>{group.title}</h4>
+            <div className={styles.grid3}>
+              {project.schedules.sectionLabels.map((section) => (
+                <div key={section.id} className={styles.svgBlock}>
+                  <label className={styles.field}>Section label<input value={section.name} onChange={(event) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, sectionLabels: current.schedules.sectionLabels.map((entry) => entry.id === section.id ? { ...entry, name: event.target.value } : entry) } }))} /></label>
+                  {[
+                    ['D_in', 'D (in)'],
+                    ['tw_in', 'tw (in)'],
+                    ['tf_top_in', 'tf_top (in)'],
+                    ['bf_top_in', 'bf_top (in)'],
+                    ['tf_bot_in', 'tf_bot (in)'],
+                    ['bf_bot_in', 'bf_bot (in)'],
+                  ].map(([key, title]) => (
+                    <label className={styles.field} key={`${section.id}-${key}`}>
+                      {title}
+                      <NumericInput value={section[key]} onCommit={(value) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, sectionLabels: current.schedules.sectionLabels.map((entry) => entry.id === section.id ? { ...entry, [key]: value } : entry) } }))} />
+                    </label>
+                  ))}
+                  <div className={styles.actions}>
+                    <button type="button" className={styles.secondaryButton} onClick={() => updateProject((current) => ({ ...current, schedules: { ...current.schedules, sectionLabels: [...current.schedules.sectionLabels, { ...section, id: crypto.randomUUID(), name: `${section.name || 'SEC'} Copy` }] } }))}>Duplicate section</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button type="button" className={styles.secondaryButton} onClick={() => updateProject((current) => ({ ...current, schedules: { ...current.schedules, sectionLabels: [...current.schedules.sectionLabels, createSectionLabel(`SEC-${current.schedules.sectionLabels.length + 1}`)] } }))}>Add section label</button>
+
+            {!project.schedules.sectionConstant && (
+              <div>
+                <h4>Assign section label by span location</h4>
                 <div className={styles.tableWrap}>
                   <table className={styles.table}>
-                    <thead>
-                      <tr>
-                        <th>Start X (ft)</th>
-                        <th>End X (ft)</th>
-                        <th>Label</th>
-                        <th />
-                      </tr>
-                    </thead>
+                    <thead><tr><th>Location</th><th>Section label</th></tr></thead>
                     <tbody>
-                      {project.schedules[group.key].map((row) => (
-                        <tr key={row.id}>
+                      {project.schedules.sectionAssignments.map((assignment) => (
+                        <tr key={assignment.id}>
+                          <td>{project.derived.locations.find((entry) => entry.id === assignment.locationId)?.name || assignment.locationId}</td>
                           <td>
-                            <input
-                              type="number"
-                              value={row.startX_ft}
-                              onChange={(event) =>
-                                updateProject((current) => ({
-                                  ...current,
-                                  schedules: {
-                                    ...current.schedules,
-                                    [group.key]: current.schedules[group.key].map((entry) =>
-                                      entry.id === row.id
-                                        ? { ...entry, startX_ft: toNumber(event.target.value) }
-                                        : entry,
-                                    ),
-                                  },
-                                }))
-                              }
-                            />
-                          </td>
-                          <td>
-                            <input
-                              type="number"
-                              value={row.endX_ft}
-                              onChange={(event) =>
-                                updateProject((current) => ({
-                                  ...current,
-                                  schedules: {
-                                    ...current.schedules,
-                                    [group.key]: current.schedules[group.key].map((entry) =>
-                                      entry.id === row.id
-                                        ? { ...entry, endX_ft: toNumber(event.target.value) }
-                                        : entry,
-                                    ),
-                                  },
-                                }))
-                              }
-                            />
-                          </td>
-                          <td>
-                            <input
-                              value={row.label}
-                              onChange={(event) =>
-                                updateProject((current) => ({
-                                  ...current,
-                                  schedules: {
-                                    ...current.schedules,
-                                    [group.key]: current.schedules[group.key].map((entry) =>
-                                      entry.id === row.id ? { ...entry, label: event.target.value } : entry,
-                                    ),
-                                  },
-                                }))
-                              }
-                            />
-                          </td>
-                          <td>
-                            <button
-                              type="button"
-                              className={styles.secondaryButton}
-                              onClick={() =>
-                                updateProject((current) => ({
-                                  ...current,
-                                  schedules: {
-                                    ...current.schedules,
-                                    [group.key]: current.schedules[group.key].filter((entry) => entry.id !== row.id),
-                                  },
-                                }))
-                              }
-                            >
-                              Remove
-                            </button>
+                            <select value={assignment.labelId || ''} onChange={(event) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, sectionAssignments: current.schedules.sectionAssignments.map((entry) => entry.id === assignment.id ? { ...entry, labelId: event.target.value || null } : entry) } }))}>
+                              <option value="">Select section</option>
+                              {project.schedules.sectionLabels.map((label) => <option key={label.id} value={label.id}>{label.name || 'Untitled section'}</option>)}
+                            </select>
                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
-                <button
-                  type="button"
-                  className={styles.secondaryButton}
-                  onClick={() =>
-                    updateProject((current) => ({
-                      ...current,
-                      schedules: {
-                        ...current.schedules,
-                        [group.key]: [...current.schedules[group.key], createEmptyRangeRow()],
-                      },
-                    }))
-                  }
-                >
-                  Add row
-                </button>
               </div>
-            ))}
+            )}
+          </section>
 
-            <h4>Bracing / LTB schedule (stub)</h4>
+          <section className={styles.card}>
+            <h3 className={styles.sectionTitle}>Stud Layout</h3>
+            <h4>Span stud layouts</h4>
+            <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>Span</th><th>studsPerRow</th><th>numberOfRows</th><th>spacing (in)</th><th>diameter (in)</th><th>Fy (ksi)</th></tr></thead><tbody>
+              {project.schedules.spanStudLayouts.map((row, idx) => (
+                <tr key={row.id}><td>{row.name}</td>
+                  {['studsPerRow','numberOfRows','spacing_in','diameter_in','Fy_ksi'].map((key)=><td key={`${row.id}-${key}`}><NumericInput value={row[key]} onCommit={(value)=>updateProject((current)=>({ ...current, schedules:{...current.schedules, spanStudLayouts: current.schedules.spanStudLayouts.map((entry, i)=> i===idx ? {...entry,[key]: value}:entry)}}))} /></td>)}
+                </tr>
+              ))}
+            </tbody></table></div>
+            <h4>Support stud layouts</h4>
+            <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>Support</th><th>studsPerRow</th><th>numberOfRows</th><th>spacing (in)</th><th>diameter (in)</th><th>Fy (ksi)</th></tr></thead><tbody>
+              {project.schedules.supportStudLayouts.map((row, idx) => (
+                <tr key={row.id}><td>{row.name}</td>
+                  {['studsPerRow','numberOfRows','spacing_in','diameter_in','Fy_ksi'].map((key)=><td key={`${row.id}-${key}`}><NumericInput value={row[key]} onCommit={(value)=>updateProject((current)=>({ ...current, schedules:{...current.schedules, supportStudLayouts: current.schedules.supportStudLayouts.map((entry, i)=> i===idx ? {...entry,[key]: value}:entry)}}))} /></td>)}
+                </tr>
+              ))}
+            </tbody></table></div>
+            <PlaceholderSketch title="Stud layout diagram">
+              <svg viewBox="0 0 260 160" width="100%" height="160"><rect width="260" height="160" fill="white" /><rect x="20" y="70" width="220" height="20" fill="#d1d5db" stroke="black" />{[40,65,90,115,140,165,190,215].map((x) => <line key={x} x1={x} y1="56" x2={x} y2="70" stroke="black" strokeWidth="4" />)}<text x="20" y="28" fontSize="12" fontWeight="700">Stud layout template</text></svg>
+            </PlaceholderSketch>
+          </section>
+
+          <section className={styles.card}>
+            <h3 className={styles.sectionTitle}>Diaphragm Locations</h3>
             <div className={styles.tableWrap}>
-              <table className={styles.table}>
-                <thead>
-                  <tr>
-                    <th>Start X (ft)</th>
-                    <th>End X (ft)</th>
-                    <th>Lb (ft)</th>
-                    <th>Notes</th>
-                    <th />
+              <table className={styles.table}><thead><tr><th>X from Abutment A (ft)</th><th>Note</th><th /></tr></thead><tbody>
+                {project.schedules.diaphragmLocations.map((row) => (
+                  <tr key={row.id}>
+                    <td><NumericInput value={row.x_ft} onCommit={(value)=>updateProject((current)=>({ ...current, schedules:{...current.schedules, diaphragmLocations: current.schedules.diaphragmLocations.map((entry)=>entry.id===row.id?{...entry,x_ft:value}:entry)}}))} /></td>
+                    <td><input value={row.note || ''} onChange={(event)=>updateProject((current)=>({ ...current, schedules:{...current.schedules, diaphragmLocations: current.schedules.diaphragmLocations.map((entry)=>entry.id===row.id?{...entry,note:event.target.value}:entry)}}))} /></td>
+                    <td><button type="button" className={styles.secondaryButton} onClick={()=>updateProject((current)=>({ ...current, schedules:{...current.schedules, diaphragmLocations: current.schedules.diaphragmLocations.filter((entry)=>entry.id!==row.id)}}))}>Remove</button></td>
                   </tr>
-                </thead>
-                <tbody>
-                  {project.schedules.bracingSchedule.map((row) => (
-                    <tr key={row.id}>
-                      <td><input type="number" value={row.startX_ft} onChange={(event) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, bracingSchedule: current.schedules.bracingSchedule.map((entry) => entry.id === row.id ? { ...entry, startX_ft: toNumber(event.target.value) } : entry) } }))} /></td>
-                      <td><input type="number" value={row.endX_ft} onChange={(event) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, bracingSchedule: current.schedules.bracingSchedule.map((entry) => entry.id === row.id ? { ...entry, endX_ft: toNumber(event.target.value) } : entry) } }))} /></td>
-                      <td><input type="number" value={row.Lb_ft} onChange={(event) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, bracingSchedule: current.schedules.bracingSchedule.map((entry) => entry.id === row.id ? { ...entry, Lb_ft: toNumber(event.target.value) } : entry) } }))} /></td>
-                      <td><input value={row.notes} onChange={(event) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, bracingSchedule: current.schedules.bracingSchedule.map((entry) => entry.id === row.id ? { ...entry, notes: event.target.value } : entry) } }))} /></td>
-                      <td>
-                        <button type="button" className={styles.secondaryButton} onClick={() => updateProject((current) => ({ ...current, schedules: { ...current.schedules, bracingSchedule: current.schedules.bracingSchedule.filter((entry) => entry.id !== row.id) } }))}>Remove</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                ))}
+              </tbody></table>
             </div>
-            <button type="button" className={styles.secondaryButton} onClick={() => updateProject((current) => ({ ...current, schedules: { ...current.schedules, bracingSchedule: [...current.schedules.bracingSchedule, { id: crypto.randomUUID(), startX_ft: 0, endX_ft: 0, Lb_ft: 0, notes: '' }] } }))}>Add row</button>
+            <button type="button" className={styles.secondaryButton} onClick={()=>updateProject((current)=>({ ...current, schedules:{...current.schedules, diaphragmLocations:[...current.schedules.diaphragmLocations,{id:crypto.randomUUID(),x_ft:null,note:''}]}}))}>Add diaphragm</button>
           </section>
 
           <section className={styles.card}>
             <h3 className={styles.sectionTitle}>Materials (stub)</h3>
             <div className={styles.grid3}>
-              <label className={styles.field}>Steel Fy (ksi)<input type="number" value={project.materials.Fy_ksi} onChange={(event) => updateProject((current) => ({ ...current, materials: { ...current.materials, Fy_ksi: toNumber(event.target.value) } }))} /></label>
-              <label className={styles.field}>Concrete f’c (ksi)<input type="number" value={project.materials.fc_ksi} onChange={(event) => updateProject((current) => ({ ...current, materials: { ...current.materials, fc_ksi: toNumber(event.target.value) } }))} /></label>
-              <label className={styles.field}>Es (ksi)<input type="number" value={project.materials.Es_ksi} onChange={(event) => updateProject((current) => ({ ...current, materials: { ...current.materials, Es_ksi: toNumber(event.target.value) } }))} /></label>
+              <label className={styles.field}>Steel Fy (ksi)<NumericInput value={project.materials.Fy_ksi} onCommit={(value) => updateProject((current) => ({ ...current, materials: { ...current.materials, Fy_ksi: value } }))} /></label>
+              <label className={styles.field}>Concrete f’c (ksi)<NumericInput value={project.materials.fc_ksi} onCommit={(value) => updateProject((current) => ({ ...current, materials: { ...current.materials, fc_ksi: value } }))} /></label>
+              <label className={styles.field}>Es (ksi)<NumericInput value={project.materials.Es_ksi} onCommit={(value) => updateProject((current) => ({ ...current, materials: { ...current.materials, Es_ksi: value } }))} /></label>
             </div>
           </section>
 
           <section className={styles.card}>
             <h3 className={styles.sectionTitle}>Automatic Dead Loads (DC/DW) – per girder line load scaffold</h3>
             <div className={styles.grid3}>
-              <label className={styles.field}>Deck thickness (in)<input type="number" value={project.autoDeadLoad.deckThickness_in} onChange={(event) => updateProject((current) => ({ ...current, autoDeadLoad: { ...current.autoDeadLoad, deckThickness_in: toNumber(event.target.value) } }))} /></label>
-              <label className={styles.field}>Haunch thickness (in)<input type="number" value={project.autoDeadLoad.haunchThickness_in} onChange={(event) => updateProject((current) => ({ ...current, autoDeadLoad: { ...current.autoDeadLoad, haunchThickness_in: toNumber(event.target.value) } }))} /></label>
-              <label className={styles.field}>Wearing surface thickness (in)<input type="number" value={project.autoDeadLoad.wearingSurfaceThickness_in} onChange={(event) => updateProject((current) => ({ ...current, autoDeadLoad: { ...current.autoDeadLoad, wearingSurfaceThickness_in: toNumber(event.target.value) } }))} /></label>
-              <label className={styles.field}>Parapet/rail line load (k/ft)<input type="number" value={project.autoDeadLoad.parapetRailLineLoad_kft} onChange={(event) => updateProject((current) => ({ ...current, autoDeadLoad: { ...current.autoDeadLoad, parapetRailLineLoad_kft: toNumber(event.target.value) } }))} /></label>
-              <label className={styles.field}>SIP forms load (psf)<input type="number" value={project.autoDeadLoad.sipForms_psf} onChange={(event) => updateProject((current) => ({ ...current, autoDeadLoad: { ...current.autoDeadLoad, sipForms_psf: toNumber(event.target.value) } }))} /></label>
-              <label className={styles.field}>Steel unit weight (pcf)<input type="number" value={project.autoDeadLoad.steelUnitWeight_pcf} onChange={(event) => updateProject((current) => ({ ...current, autoDeadLoad: { ...current.autoDeadLoad, steelUnitWeight_pcf: toNumber(event.target.value) } }))} /></label>
+              <label className={styles.field}>Deck thickness (in)<NumericInput value={project.autoDeadLoad.deckThickness_in} onCommit={(value) => updateProject((current) => ({ ...current, autoDeadLoad: { ...current.autoDeadLoad, deckThickness_in: value } }))} /></label>
+              <label className={styles.field}>Haunch thickness (in)<NumericInput value={project.autoDeadLoad.haunchThickness_in} onCommit={(value) => updateProject((current) => ({ ...current, autoDeadLoad: { ...current.autoDeadLoad, haunchThickness_in: value } }))} /></label>
+              <label className={styles.field}>Wearing surface thickness (in)<NumericInput value={project.autoDeadLoad.wearingSurfaceThickness_in} onCommit={(value) => updateProject((current) => ({ ...current, autoDeadLoad: { ...current.autoDeadLoad, wearingSurfaceThickness_in: value } }))} /></label>
+              <label className={styles.field}>Parapet/rail line load (k/ft)<NumericInput value={project.autoDeadLoad.parapetRailLineLoad_kft} onCommit={(value) => updateProject((current) => ({ ...current, autoDeadLoad: { ...current.autoDeadLoad, parapetRailLineLoad_kft: value } }))} /></label>
+              <label className={styles.field}>SIP forms load (psf)<NumericInput value={project.autoDeadLoad.sipForms_psf} onCommit={(value) => updateProject((current) => ({ ...current, autoDeadLoad: { ...current.autoDeadLoad, sipForms_psf: value } }))} /></label>
+              <label className={styles.field}>Steel unit weight (pcf)<NumericInput value={project.autoDeadLoad.steelUnitWeight_pcf} onCommit={(value) => updateProject((current) => ({ ...current, autoDeadLoad: { ...current.autoDeadLoad, steelUnitWeight_pcf: value } }))} /></label>
             </div>
             <div className={styles.callout}>
-              Preliminary scaffold values: <strong>DC_line_kft = {deadLoads.DC_line_kft}</strong>, <strong>DW_line_kft = {deadLoads.DW_line_kft}</strong>.
+              Preliminary scaffold values: <strong>DC_line_kft = {formatDisplay(deadLoads.DC_line_kft, 4)}</strong>, <strong>DW_line_kft = {formatDisplay(deadLoads.DW_line_kft, 4)}</strong>.
             </div>
             <label className={styles.inlineCheckbox}>
               <input type="checkbox" checked={project.autoDeadLoad.verifiedByUser} onChange={(event) => updateProject((current) => ({ ...current, autoDeadLoad: { ...current.autoDeadLoad, verifiedByUser: event.target.checked } }))} />
@@ -930,44 +895,43 @@ export default function CompositeSteelGirderLrfdPage() {
 
           <section className={styles.card}>
             <h3 className={styles.sectionTitle}>Demand Entry by Location</h3>
+            <p className={styles.muted}>Enter M with sign: +M sagging (typ. midspan), −M hogging (typ. supports). Enter −M as negative.</p>
+            <h4>Span location points (x′ from left support)</h4>
+            <div className={styles.tableWrap}>
+              <table className={styles.table}><thead><tr><th>Span</th><th>Length (ft)</th><th>Moment @ L/2</th><th>x′ (ft)</th></tr></thead><tbody>
+                {project.geometry.spanPoints.map((point, index) => {
+                  const spanLength = toNumber(project.geometry.spanLengths_ft[index], 0);
+                  const xPrime = point.momentAtMid ? spanLength / 2 : point.xPrime_ft;
+                  return (
+                    <tr key={`point-${index}`}>
+                      <td>Span {index + 1}</td><td>{formatDisplay(project.geometry.spanLengths_ft[index])}</td>
+                      <td><input type="checkbox" checked={point.momentAtMid} onChange={(event)=>updateProject((current)=>{const next=[...current.geometry.spanPoints]; next[index]={...next[index], momentAtMid:event.target.checked, xPrime_ft:event.target.checked?toNumber(current.geometry.spanLengths_ft[index],0)/2:next[index].xPrime_ft}; return {...current, geometry:{...current.geometry, spanPoints:next}};})} /></td>
+                      <td><NumericInput value={xPrime} disabled={point.momentAtMid} onCommit={(value)=>updateProject((current)=>{const next=[...current.geometry.spanPoints]; next[index]={...next[index], xPrime_ft:value}; return {...current, geometry:{...current.geometry, spanPoints:next}};})} /></td>
+                    </tr>
+                  );
+                })}
+              </tbody></table>
+            </div>
             <div className={styles.tableWrap}>
               <table className={styles.table}>
                 <thead>
                   <tr>
                     <th>Location</th>
                     <th>X global (ft)</th>
-                    <th>Default sign</th>
-                    {['DC1', 'DC2', 'DW', 'LL_IM'].map((effect) => (
-                      <th key={`${effect}-m`}>{effect} M (k-ft)</th>
-                    ))}
-                    {['DC1', 'DC2', 'DW', 'LL_IM'].map((effect) => (
-                      <th key={`${effect}-v`}>{effect} V (k)</th>
-                    ))}
+                    {['DC1', 'DC2', 'DW', 'LL_IM'].map((effect) => <th key={`${effect}-m`}><Symbol label="M" sub={effect === 'LL_IM' ? 'LL+IM' : effect} /> (k-ft)</th>)}
+                    {['DC1', 'DC2', 'DW', 'LL_IM'].map((effect) => <th key={`${effect}-v`}><Symbol label="V" sub={effect === 'LL_IM' ? 'LL+IM' : effect} /> (k)</th>)}
                   </tr>
                 </thead>
                 <tbody>
                   {project.derived.locations.map((location) => (
                     <tr key={location.id}>
                       <td>{location.name}</td>
-                      <td>{location.x_global_ft}</td>
-                      <td>{location.defaultMomentSign > 0 ? '+' : '-'}</td>
+                      <td>{formatDisplay(location.x_global_ft)}</td>
                       {['DC1', 'DC2', 'DW', 'LL_IM'].map((effect) => (
-                        <td key={`${location.id}-${effect}-m`}>
-                          <input
-                            type="number"
-                            value={project.demandByLocation[location.id]?.[effect]?.M_kft ?? 0}
-                            onChange={(event) => setDemand(location.id, effect, 'M_kft', event.target.value)}
-                          />
-                        </td>
+                        <td key={`${location.id}-${effect}-m`}><NumericInput value={project.demandByLocation[location.id]?.[effect]?.M_kft} onCommit={(value) => setDemand(location.id, effect, 'M_kft', value)} /></td>
                       ))}
                       {['DC1', 'DC2', 'DW', 'LL_IM'].map((effect) => (
-                        <td key={`${location.id}-${effect}-v`}>
-                          <input
-                            type="number"
-                            value={project.demandByLocation[location.id]?.[effect]?.V_k ?? 0}
-                            onChange={(event) => setDemand(location.id, effect, 'V_k', event.target.value)}
-                          />
-                        </td>
+                        <td key={`${location.id}-${effect}-v`}><NumericInput value={project.demandByLocation[location.id]?.[effect]?.V_k} onCommit={(value) => setDemand(location.id, effect, 'V_k', value)} /></td>
                       ))}
                     </tr>
                   ))}
@@ -983,54 +947,33 @@ export default function CompositeSteelGirderLrfdPage() {
                 <thead>
                   <tr>
                     <th>Location</th>
-                    <th>Strength I Mu (kip-in)</th>
-                    <th>Strength I Vu (k)</th>
-                    <th>Service II Ms (kip-in)</th>
-                    <th>Service II Vs (k)</th>
-                    <th>Fatigue Mf (kip-in)</th>
-                    <th>Fatigue Vf (k)</th>
+                    <th><Symbol label="M" sub="u" /> Strength I (kip-in)</th>
+                    <th><Symbol label="V" sub="u" /> Strength I (k)</th>
+                    <th><Symbol label="M" sub="s" /> Service II (kip-in)</th>
+                    <th><Symbol label="V" sub="s" /> Service II (k)</th>
+                    <th><Symbol label="M" sub="f" /> Fatigue (kip-in)</th>
+                    <th><Symbol label="V" sub="f" /> Fatigue (k)</th>
                   </tr>
                 </thead>
                 <tbody>
                   {project.derived.locations.map((location) => {
                     const combo = combos[location.id] || {};
                     const allowOverride = project.settings.allowOverridingFactoredCombinations;
-
-                    const getValue = (path, fallback) => {
-                      const override = project.comboOverridesByLocation[location.id]?.[path];
-                      return override ?? fallback;
-                    };
-
-                    const editOverride = (path, value) => {
-                      updateProject((current) => ({
-                        ...current,
-                        comboOverridesByLocation: {
-                          ...current.comboOverridesByLocation,
-                          [location.id]: {
-                            ...current.comboOverridesByLocation[location.id],
-                            [path]: toNumber(value),
-                          },
-                        },
-                      }));
-                    };
-
+                    const getValue = (path, fallback) => project.comboOverridesByLocation[location.id]?.[path] ?? fallback;
+                    const editOverride = (path, value) => updateProject((current) => ({ ...current, comboOverridesByLocation: { ...current.comboOverridesByLocation, [location.id]: { ...current.comboOverridesByLocation[location.id], [path]: value } } }));
                     return (
                       <tr key={`${location.id}-combo`}>
                         <td>{location.name}</td>
                         {[
-                          ['StrengthI.M_u_kipin', combo.StrengthI?.M_u_kipin ?? 0],
-                          ['StrengthI.V_u_k', combo.StrengthI?.V_u_k ?? 0],
-                          ['ServiceII.M_s_kipin', combo.ServiceII?.M_s_kipin ?? 0],
-                          ['ServiceII.V_s_k', combo.ServiceII?.V_s_k ?? 0],
-                          ['Fatigue.M_f_kipin', combo.Fatigue?.M_f_kipin ?? 0],
-                          ['Fatigue.V_f_k', combo.Fatigue?.V_f_k ?? 0],
+                          ['StrengthI.M_u_kipin', combo.StrengthI?.M_u_kipin ?? null],
+                          ['StrengthI.V_u_k', combo.StrengthI?.V_u_k ?? null],
+                          ['ServiceII.M_s_kipin', combo.ServiceII?.M_s_kipin ?? null],
+                          ['ServiceII.V_s_k', combo.ServiceII?.V_s_k ?? null],
+                          ['Fatigue.M_f_kipin', combo.Fatigue?.M_f_kipin ?? null],
+                          ['Fatigue.V_f_k', combo.Fatigue?.V_f_k ?? null],
                         ].map(([path, value]) => (
                           <td key={`${location.id}-${path}`}>
-                            {allowOverride ? (
-                              <input type="number" value={round(getValue(path, value), 3)} onChange={(event) => editOverride(path, event.target.value)} />
-                            ) : (
-                              round(value, 3)
-                            )}
+                            {allowOverride ? <NumericInput value={round(getValue(path, value), 3)} onCommit={(nextValue) => editOverride(path, nextValue)} /> : formatDisplay(value, 3)}
                           </td>
                         ))}
                       </tr>
@@ -1040,54 +983,6 @@ export default function CompositeSteelGirderLrfdPage() {
               </table>
             </div>
             <div className={styles.callout}>Constructability combos are scaffolded in state as DCOnly/WithLL and available for later detailed checks.</div>
-          </section>
-
-          <section className={styles.card}>
-            <h3 className={styles.sectionTitle}>Diagrams</h3>
-            <PlaceholderSketch title="Elevation diagram (dynamic)">
-              <svg viewBox="0 0 900 220" width="100%" height="220" role="img" aria-label="Bridge elevation">
-                <rect x="0" y="0" width="900" height="220" fill="white" />
-                <line x1="40" y1="100" x2="860" y2="100" stroke="black" strokeWidth="3" />
-                {(() => {
-                  const total = project.geometry.spanLengths_ft.reduce((sum, value) => sum + toNumber(value), 0) || 1;
-                  let cursor = 40;
-                  return project.geometry.spanLengths_ft.map((span, index) => {
-                    const width = (toNumber(span) / total) * 820;
-                    const supportX = cursor;
-                    cursor += width;
-                    return (
-                      <g key={`span-svg-${index}`}>
-                        <polygon points={`${supportX},140 ${supportX - 12},170 ${supportX + 12},170`} fill="#d1d5db" stroke="black" />
-                        <text x={supportX + width / 2 - 28} y="86" fontSize="14" fontWeight="700">L{index + 1}={span} ft</text>
-                        <line x1={supportX} y1="115" x2={supportX + width} y2="115" stroke="#111" strokeWidth="1" />
-                      </g>
-                    );
-                  });
-                })()}
-                <polygon points="860,140 848,170 872,170" fill="#d1d5db" stroke="black" />
-                <text x="40" y="200" fontSize="14" fontWeight="700">
-                  Skew: {project.geometry.skew_deg}° | Girders: {project.geometry.numberOfGirders} | Spacing:{' '}
-                  {project.geometry.constantSpacing
-                    ? `${project.geometry.spacing_ft} ft (constant)`
-                    : project.geometry.spacingArray_ft.join(', ')}
-                </text>
-              </svg>
-            </PlaceholderSketch>
-
-            <div className={styles.grid2}>
-              <PlaceholderSketch title="Composite section (template)">
-                <svg viewBox="0 0 260 160" width="100%" height="160"><rect width="260" height="160" fill="white" /><rect x="35" y="20" width="190" height="32" fill="#e5e7eb" stroke="black" /><rect x="110" y="52" width="40" height="70" fill="#9ca3af" stroke="black" /><rect x="65" y="122" width="130" height="18" fill="#9ca3af" stroke="black" /><text x="54" y="15" fontSize="12" fontWeight="700">Deck + slab</text></svg>
-              </PlaceholderSketch>
-              <PlaceholderSketch title="Stud layout sketch (template)">
-                <svg viewBox="0 0 260 160" width="100%" height="160"><rect width="260" height="160" fill="white" /><rect x="20" y="70" width="220" height="20" fill="#d1d5db" stroke="black" />{[40,65,90,115,140,165,190,215].map((x) => <line key={x} x1={x} y1="56" x2={x} y2="70" stroke="black" strokeWidth="4" />)}<text x="20" y="28" fontSize="12" fontWeight="700">Studs @ s (placeholder)</text></svg>
-              </PlaceholderSketch>
-              <PlaceholderSketch title="Bearing stiffener sketch (template)">
-                <svg viewBox="0 0 260 160" width="100%" height="160"><rect width="260" height="160" fill="white" /><rect x="45" y="30" width="170" height="14" fill="#e5e7eb" stroke="black" /><rect x="80" y="44" width="24" height="70" fill="#9ca3af" stroke="black" /><rect x="156" y="44" width="24" height="70" fill="#9ca3af" stroke="black" /><rect x="60" y="114" width="140" height="18" fill="#d1d5db" stroke="black" /><text x="50" y="150" fontSize="11" fontWeight="700">Bearing stiffener template</text></svg>
-              </PlaceholderSketch>
-              <PlaceholderSketch title="Field bolted splice sketch (template)">
-                <svg viewBox="0 0 260 160" width="100%" height="160"><rect width="260" height="160" fill="white" /><rect x="24" y="58" width="90" height="34" fill="#9ca3af" stroke="black" /><rect x="146" y="58" width="90" height="34" fill="#9ca3af" stroke="black" /><rect x="110" y="50" width="40" height="50" fill="#e5e7eb" stroke="black" />{[116,126,136,146].map((x) => <circle key={x} cx={x} cy="75" r="3" fill="black" />)}<text x="38" y="28" fontSize="12" fontWeight="700">Field bolted splice</text></svg>
-              </PlaceholderSketch>
-            </div>
           </section>
         </>
       ) : (
