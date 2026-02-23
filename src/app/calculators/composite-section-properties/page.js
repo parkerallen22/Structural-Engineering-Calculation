@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   computeSectionProps,
   getDefaultInput,
@@ -17,18 +17,65 @@ function fmt(value) {
   return Number(value).toLocaleString(undefined, { maximumFractionDigits: 3 });
 }
 
+function SymbolLabel({ symbol, subscript }) {
+  return (
+    <>
+      {symbol}
+      {subscript ? <sub>{subscript}</sub> : null}
+    </>
+  );
+}
+
 function NumberField({ label, value, onChange, min = 0, step = 'any', unit, note }) {
+  const [draft, setDraft] = useState(String(value ?? ''));
+
+  useEffect(() => {
+    setDraft(String(value ?? ''));
+  }, [value]);
+
+  const handleChange = (event) => {
+    const nextDraft = event.target.value;
+    setDraft(nextDraft);
+
+    if (nextDraft.trim() === '') {
+      return;
+    }
+
+    const parsed = Number(nextDraft);
+    if (!Number.isNaN(parsed)) {
+      onChange(parsed);
+    }
+  };
+
+  const handleBlur = () => {
+    const parsed = Number(draft);
+    if (draft.trim() === '' || Number.isNaN(parsed)) {
+      setDraft(String(value ?? ''));
+      return;
+    }
+
+    if (parsed < min) {
+      onChange(min);
+      setDraft(String(min));
+      return;
+    }
+
+    setDraft(String(parsed));
+  };
+
   return (
     <label className={styles.field}>
       <span>
         {label} {unit ? <em>({unit})</em> : null}
       </span>
       <input
-        type="number"
+        type="text"
+        inputMode="decimal"
         min={min}
         step={step}
-        value={value}
-        onChange={(event) => onChange(Number(event.target.value))}
+        value={draft}
+        onChange={handleChange}
+        onBlur={handleBlur}
       />
       {note ? <small>{note}</small> : null}
     </label>
@@ -39,7 +86,7 @@ function RebarMatEditor({ mat, onChange, title }) {
   return (
     <section className={styles.groupCard}>
       <h5>{title}</h5>
-      <div className={styles.gridThree}>
+      <div className={styles.stackFields}>
         <label className={styles.field}>
           <span>Bar size</span>
           <select
@@ -54,19 +101,19 @@ function RebarMatEditor({ mat, onChange, title }) {
           </select>
         </label>
         <NumberField
-          label="Spacing"
+          label={<>Bar spacing, <SymbolLabel symbol="s" /> </>}
           unit="in"
           min={0.01}
           value={mat.spacing}
           onChange={(value) => onChange({ ...mat, spacing: value })}
         />
         <NumberField
-          label="Clear distance"
+          label={<>Clear distance, <SymbolLabel symbol="c" /> </>}
           unit="in"
           min={0}
           value={mat.clearDistance}
           onChange={(value) => onChange({ ...mat, clearDistance: value })}
-          note="Clear distance is measured from concrete face to bar OUTSIDE edge."
+          note="Clear distance is measured from concrete face to bar outside edge."
         />
       </div>
 
@@ -82,7 +129,7 @@ function RebarMatEditor({ mat, onChange, title }) {
       </label>
 
       {mat.alternatingBars ? (
-        <div className={styles.gridTwo}>
+        <div className={styles.stackFields}>
           <label className={styles.field}>
             <span>Alternate bar size</span>
             <select
@@ -97,7 +144,7 @@ function RebarMatEditor({ mat, onChange, title }) {
             </select>
           </label>
           <NumberField
-            label="Alternate spacing"
+            label={<>Alternate spacing, <SymbolLabel symbol="s" subscript="alt" /> </>}
             unit="in"
             min={0.01}
             value={mat.altSpacing}
@@ -109,24 +156,55 @@ function RebarMatEditor({ mat, onChange, title }) {
   );
 }
 
-function RegionEditor({ title, region, onChange, topEqualsBottomFlange }) {
+function RegionEditor({
+  title,
+  region,
+  onChange,
+  topEqualsBottomFlange,
+  showSharedControls = false,
+  positiveSameAsNegative,
+  onPositiveSameAsNegativeChange,
+  onTopEqualsBottomFlangeChange,
+}) {
   return (
     <section className={styles.sectionCard}>
       <h3>{title}</h3>
 
+      {showSharedControls ? (
+        <div className={styles.stackFields}>
+          <label className={styles.checkboxRow}>
+            <input
+              type="checkbox"
+              checked={positiveSameAsNegative}
+              onChange={(event) => onPositiveSameAsNegativeChange(event.target.checked)}
+            />
+            Positive Region Same As Negative Region
+          </label>
+
+          <label className={styles.checkboxRow}>
+            <input
+              type="checkbox"
+              checked={topEqualsBottomFlange}
+              onChange={(event) => onTopEqualsBottomFlangeChange(event.target.checked)}
+            />
+            Top Flange Is Identical To The Bottom Flange
+          </label>
+        </div>
+      ) : null}
+
       <h4>Steel geometry</h4>
-      <div className={styles.gridThree}>
-        <NumberField label="D" unit="in" min={0.01} value={region.D} onChange={(value) => onChange({ ...region, D: value })} />
-        <NumberField label="tw" unit="in" min={0.01} value={region.tw} onChange={(value) => onChange({ ...region, tw: value })} />
+      <div className={styles.stackFields}>
+        <NumberField label={<>Steel depth, <SymbolLabel symbol="D" /> </>} unit="in" min={0.01} value={region.D} onChange={(value) => onChange({ ...region, D: value })} />
+        <NumberField label={<>Web thickness, <SymbolLabel symbol="t" subscript="w" /> </>} unit="in" min={0.01} value={region.tw} onChange={(value) => onChange({ ...region, tw: value })} />
         <NumberField
-          label="tf_top"
+          label={<>Top flange thickness, <SymbolLabel symbol="t" subscript="f,top" /> </>}
           unit="in"
           min={0.01}
           value={region.tfTop}
           onChange={(value) => onChange({ ...region, tfTop: value })}
         />
         <NumberField
-          label="bf_top"
+          label={<>Top flange width, <SymbolLabel symbol="b" subscript="f,top" /> </>}
           unit="in"
           min={0.01}
           value={region.bfTop}
@@ -136,14 +214,14 @@ function RegionEditor({ title, region, onChange, topEqualsBottomFlange }) {
         {!topEqualsBottomFlange ? (
           <>
             <NumberField
-              label="tf_bot"
+              label={<>Bottom flange thickness, <SymbolLabel symbol="t" subscript="f,bot" /> </>}
               unit="in"
               min={0.01}
               value={region.tfBot}
               onChange={(value) => onChange({ ...region, tfBot: value })}
             />
             <NumberField
-              label="bf_bot"
+              label={<>Bottom flange width, <SymbolLabel symbol="b" subscript="f,bot" /> </>}
               unit="in"
               min={0.01}
               value={region.bfBot}
@@ -151,21 +229,21 @@ function RegionEditor({ title, region, onChange, topEqualsBottomFlange }) {
             />
           </>
         ) : (
-          <p className={styles.inlineNote}>Bottom flange dimensions mirror top flange (W-shape).</p>
+          <p className={styles.inlineNote}>Bottom flange dimensions mirror top flange.</p>
         )}
       </div>
 
-      <h4>Deck + haunch</h4>
-      <div className={styles.gridThree}>
+      <h4>Deck and haunch</h4>
+      <div className={styles.stackFields}>
         <NumberField
-          label="Haunch thickness t_haunch"
+          label={<>Haunch thickness, <SymbolLabel symbol="t" subscript="haunch" /> </>}
           unit="in"
           min={0.01}
           value={region.tHaunch}
           onChange={(value) => onChange({ ...region, tHaunch: value })}
         />
         <NumberField
-          label="Slab thickness t_slab"
+          label={<>Slab thickness, <SymbolLabel symbol="t" subscript="slab" /> </>}
           unit="in"
           min={0.01}
           value={region.tSlab}
@@ -174,9 +252,9 @@ function RegionEditor({ title, region, onChange, topEqualsBottomFlange }) {
       </div>
 
       <h4>Effective deck width</h4>
-      <div className={styles.gridThree}>
+      <div className={styles.stackFields}>
         <NumberField
-          label="Beam spacing s"
+          label={<>Beam spacing, <SymbolLabel symbol="s" /> </>}
           unit="in"
           min={0.01}
           value={region.beamSpacing}
@@ -190,11 +268,11 @@ function RegionEditor({ title, region, onChange, topEqualsBottomFlange }) {
               onChange({ ...region, overrideBEff: event.target.checked })
             }
           />
-          Override b_eff
+          Override effective width
         </label>
         {region.overrideBEff ? (
           <NumberField
-            label="b_eff"
+            label={<>Effective width, <SymbolLabel symbol="b" subscript="eff" /> </>}
             unit="in"
             min={0.01}
             value={region.bEff}
@@ -202,13 +280,13 @@ function RegionEditor({ title, region, onChange, topEqualsBottomFlange }) {
           />
         ) : (
           <p className={styles.inlineNote}>
-            b_eff defaults to beam spacing for this scenario; effective width is code-dependent.
+            Effective width defaults to beam spacing for this scenario.
           </p>
         )}
       </div>
 
       <h4>Rebar mats</h4>
-      <div className={styles.gridTwo}>
+      <div className={styles.stackFields}>
         <RebarMatEditor
           title="Top mat"
           mat={region.rebarTop}
@@ -224,56 +302,71 @@ function RegionEditor({ title, region, onChange, topEqualsBottomFlange }) {
   );
 }
 
-function SummaryTable({ regionResult }) {
+function InputSummary({ input }) {
+  const createRegionRows = (regionName, region) => ([
+    [`${regionName} Steel depth, D (in)`, fmt(region.D)],
+    [`${regionName} Web thickness, tw (in)`, fmt(region.tw)],
+    [`${regionName} Top flange thickness, tf top (in)`, fmt(region.tfTop)],
+    [`${regionName} Top flange width, bf top (in)`, fmt(region.bfTop)],
+    [`${regionName} Bottom flange thickness, tf bot (in)`, fmt(region.tfBot)],
+    [`${regionName} Bottom flange width, bf bot (in)`, fmt(region.bfBot)],
+    [`${regionName} Haunch thickness, t haunch (in)`, fmt(region.tHaunch)],
+    [`${regionName} Slab thickness, t slab (in)`, fmt(region.tSlab)],
+    [`${regionName} Beam spacing, s (in)`, fmt(region.beamSpacing)],
+    [`${regionName} Effective width override`, region.overrideBEff ? 'Yes' : 'No'],
+    [`${regionName} Effective width, b eff (in)`, fmt(region.bEff)],
+    [`${regionName} Top mat bar size`, region.rebarTop.barSize],
+    [`${regionName} Top mat spacing (in)`, fmt(region.rebarTop.spacing)],
+    [`${regionName} Top mat clear distance (in)`, fmt(region.rebarTop.clearDistance)],
+    [`${regionName} Top mat alternating bars`, region.rebarTop.alternatingBars ? 'Yes' : 'No'],
+    [`${regionName} Top mat alternate bar size`, region.rebarTop.altBarSize],
+    [`${regionName} Top mat alternate spacing (in)`, fmt(region.rebarTop.altSpacing)],
+    [`${regionName} Bottom mat bar size`, region.rebarBottom.barSize],
+    [`${regionName} Bottom mat spacing (in)`, fmt(region.rebarBottom.spacing)],
+    [`${regionName} Bottom mat clear distance (in)`, fmt(region.rebarBottom.clearDistance)],
+    [`${regionName} Bottom mat alternating bars`, region.rebarBottom.alternatingBars ? 'Yes' : 'No'],
+    [`${regionName} Bottom mat alternate bar size`, region.rebarBottom.altBarSize],
+    [`${regionName} Bottom mat alternate spacing (in)`, fmt(region.rebarBottom.altSpacing)],
+  ]);
+
+  const rows = [
+    ['Modulus Of Elasticity Of Steel, Es (ksi)', fmt(input.materials.Es)],
+    ['Concrete Compressive Strength, f’c (ksi)', fmt(input.materials.fc)],
+    ['Modulus Of Elasticity Of Concrete, Ec (ksi)', input.materials.autoEc ? 'Auto' : fmt(input.materials.EcManual)],
+    ['Positive Region Same As Negative Region', input.positiveSameAsNegative ? 'Yes' : 'No'],
+    ['Top Flange Is Identical To Bottom Flange', input.topEqualsBottomFlange ? 'Yes' : 'No'],
+    ...createRegionRows('Negative region', input.negative),
+    ...(input.positiveSameAsNegative ? [] : createRegionRows('Positive region', input.positive)),
+  ];
+
   return (
-    <table className={styles.resultTable}>
-      <thead>
-        <tr>
-          <th>Case</th>
-          <th>I (in⁴)</th>
-          <th>S top slab (in³)</th>
-          <th>S top steel (in³)</th>
-          <th>S bottom steel (in³)</th>
-          <th>NA y from steel bottom (in)</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>Non-composite (steel only)</td>
-          <td>{fmt(regionResult.steelOnly.i)}</td>
-          <td>—</td>
-          <td>{fmt(regionResult.steelOnly.sectionModulus.topOfSteel)}</td>
-          <td>{fmt(regionResult.steelOnly.sectionModulus.bottomOfSteel)}</td>
-          <td>{fmt(regionResult.steelOnly.yBar)}</td>
-        </tr>
-        <tr>
-          <td>Composite (n)</td>
-          <td>{fmt(regionResult.compositeN.i)}</td>
-          <td>{fmt(regionResult.compositeN.sectionModulus.topOfSlab)}</td>
-          <td>{fmt(regionResult.compositeN.sectionModulus.topOfSteel)}</td>
-          <td>{fmt(regionResult.compositeN.sectionModulus.bottomOfSteel)}</td>
-          <td>{fmt(regionResult.compositeN.yBar)}</td>
-        </tr>
-        <tr>
-          <td>Composite (3n)</td>
-          <td>{fmt(regionResult.composite3N.i)}</td>
-          <td>{fmt(regionResult.composite3N.sectionModulus.topOfSlab)}</td>
-          <td>{fmt(regionResult.composite3N.sectionModulus.topOfSteel)}</td>
-          <td>{fmt(regionResult.composite3N.sectionModulus.bottomOfSteel)}</td>
-          <td>{fmt(regionResult.composite3N.yBar)}</td>
-        </tr>
-        {regionResult.key !== 'positive' ? (
-          <tr>
-            <td>Composite (cracked, negative)</td>
-            <td>{fmt(regionResult.crackedNegative.iCracked)}</td>
-            <td>—</td>
-            <td>{fmt(regionResult.crackedNegative.sectionModulus.topOfSteel)}</td>
-            <td>{fmt(regionResult.crackedNegative.sectionModulus.bottomOfSteel)}</td>
-            <td>{fmt(regionResult.crackedNegative.neutralAxis)}</td>
-          </tr>
-        ) : null}
-      </tbody>
-    </table>
+    <section className={styles.sectionCard}>
+      <h2>Input summary</h2>
+      <div className={styles.summaryGrid}>
+        {rows.map(([label, value]) => (
+          <div key={label} className={styles.summaryItem}>
+            <strong>{label}</strong>
+            <span>{value}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ResultCaseCard({ title, metrics }) {
+  return (
+    <article className={styles.resultCaseCard}>
+      <h4>{title}</h4>
+      <div className={styles.metricGrid}>
+        {metrics.map((metric) => (
+          <div key={metric.key} className={styles.metricItem}>
+            <span>{metric.label}</span>
+            <strong>{metric.value}</strong>
+          </div>
+        ))}
+      </div>
+    </article>
   );
 }
 
@@ -281,6 +374,7 @@ export default function CompositeSectionPropertiesPage() {
   const defaults = useMemo(() => getDefaultInput(), []);
   const [input, setInput] = useState(defaults);
   const [isPdfLoading, setIsPdfLoading] = useState(false);
+  const [showResults, setShowResults] = useState(true);
 
   const result = useMemo(() => computeSectionProps(input), [input]);
 
@@ -328,41 +422,10 @@ export default function CompositeSectionPropertiesPage() {
       </header>
 
       <section className={styles.sectionCard}>
-        <h2>Global controls</h2>
-        <div className={styles.gridTwo}>
-          <label className={styles.checkboxRow}>
-            <input
-              type="checkbox"
-              checked={input.positiveSameAsNegative}
-              onChange={(event) =>
-                setInput((previous) => ({
-                  ...previous,
-                  positiveSameAsNegative: event.target.checked,
-                }))
-              }
-            />
-            Positive same as Negative
-          </label>
-
-          <label className={styles.checkboxRow}>
-            <input
-              type="checkbox"
-              checked={input.topEqualsBottomFlange}
-              onChange={(event) =>
-                setInput((previous) => ({
-                  ...previous,
-                  topEqualsBottomFlange: event.target.checked,
-                }))
-              }
-            />
-            Top flange = Bottom flange (W-shape)
-          </label>
-        </div>
-
-        <h3>Material properties</h3>
-        <div className={styles.gridFour}>
+        <h2>Material properties</h2>
+        <div className={styles.stackFields}>
           <NumberField
-            label="Es"
+            label={<>Modulus Of Elasticity Of Steel, <SymbolLabel symbol="E" subscript="s" /> </>}
             unit="ksi"
             min={1}
             value={input.materials.Es}
@@ -374,7 +437,7 @@ export default function CompositeSectionPropertiesPage() {
             }
           />
           <NumberField
-            label="f'c"
+            label={<>Concrete Compressive Strength, <SymbolLabel symbol="f" subscript="c" /> </>}
             unit="ksi"
             min={0.1}
             value={input.materials.fc}
@@ -399,12 +462,12 @@ export default function CompositeSectionPropertiesPage() {
                 }))
               }
             />
-            Manual Ec
+            Manually specify Ec
           </label>
 
           {!input.materials.autoEc ? (
             <NumberField
-              label="Ec"
+              label={<>Modulus Of Elasticity Of Concrete, <SymbolLabel symbol="E" subscript="c" /> </>}
               unit="ksi"
               min={1}
               value={input.materials.EcManual}
@@ -416,13 +479,16 @@ export default function CompositeSectionPropertiesPage() {
               }
             />
           ) : (
-            <p className={styles.inlineNote}>Ec auto formula: Ec = 57,000*sqrt(f'c [psi]).</p>
+            <p className={styles.inlineNote}>Ec is calculated automatically with Ec = 57,000 × sqrt(f’c [psi]).</p>
           )}
         </div>
 
         <div className={styles.actionRow}>
           <button type="button" onClick={resetDefaults}>
             Reset to defaults
+          </button>
+          <button type="button" className={styles.calculateButton} onClick={() => setShowResults(true)}>
+            Calculate Section Properties
           </button>
           <button type="button" onClick={exportPdf} disabled={isPdfLoading || result.errors.length > 0}>
             {isPdfLoading ? 'Generating PDF...' : 'Export PDF'}
@@ -431,10 +497,24 @@ export default function CompositeSectionPropertiesPage() {
       </section>
 
       <RegionEditor
-        title="Negative region"
+        title={input.positiveSameAsNegative ? 'Positive and negative region' : 'Negative region'}
         region={input.negative}
         onChange={(region) => onRegionChange('negative', region)}
         topEqualsBottomFlange={input.topEqualsBottomFlange}
+        showSharedControls
+        positiveSameAsNegative={input.positiveSameAsNegative}
+        onPositiveSameAsNegativeChange={(checked) =>
+          setInput((previous) => ({
+            ...previous,
+            positiveSameAsNegative: checked,
+          }))
+        }
+        onTopEqualsBottomFlangeChange={(checked) =>
+          setInput((previous) => ({
+            ...previous,
+            topEqualsBottomFlange: checked,
+          }))
+        }
       />
 
       {!input.positiveSameAsNegative ? (
@@ -445,6 +525,8 @@ export default function CompositeSectionPropertiesPage() {
           topEqualsBottomFlange={input.topEqualsBottomFlange}
         />
       ) : null}
+
+      <InputSummary input={input} />
 
       <section className={styles.sectionCard}>
         <h2>Assumptions</h2>
@@ -466,78 +548,105 @@ export default function CompositeSectionPropertiesPage() {
         </section>
       ) : null}
 
-      {result.regions.map((regionResult) => (
-        <section key={regionResult.key} className={styles.sectionCard}>
-          <h2>{regionResult.label} results</h2>
-          <SummaryTable regionResult={regionResult} />
-
-          <details>
-            <summary>Show detailed calculations</summary>
-            <h4>Transformed components</h4>
-            <div className={styles.detailGrid}>
-              <article>
-                <h5>Composite (n)</h5>
-                <table className={styles.resultTable}>
-                  <thead>
-                    <tr>
-                      <th>Component</th>
-                      <th>Area (in²)</th>
-                      <th>y (in)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {regionResult.compositeN.components.map((component) => (
-                      <tr key={`n-${component.name}`}>
-                        <td>{component.name}</td>
-                        <td>{fmt(component.area)}</td>
-                        <td>{fmt(component.y)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </article>
-
-              <article>
-                <h5>Composite (3n)</h5>
-                <table className={styles.resultTable}>
-                  <thead>
-                    <tr>
-                      <th>Component</th>
-                      <th>Area (in²)</th>
-                      <th>y (in)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {regionResult.composite3N.components.map((component) => (
-                      <tr key={`3n-${component.name}`}>
-                        <td>{component.name}</td>
-                        <td>{fmt(component.area)}</td>
-                        <td>{fmt(component.y)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </article>
+      {showResults
+        ? result.regions.map((regionResult) => (
+          <section key={regionResult.key} className={styles.sectionCard}>
+            <h2>{regionResult.label} results</h2>
+            <div className={styles.resultCases}>
+              <ResultCaseCard
+                title="Non-composite (steel only)"
+                metrics={[
+                  { key: 'steel-i', label: 'I (in⁴)', value: fmt(regionResult.steelOnly.i) },
+                  { key: 'steel-s-top', label: 'S top steel (in³)', value: fmt(regionResult.steelOnly.sectionModulus.topOfSteel) },
+                  { key: 'steel-s-bottom', label: 'S bottom steel (in³)', value: fmt(regionResult.steelOnly.sectionModulus.bottomOfSteel) },
+                  { key: 'steel-na', label: 'NA y from steel bottom (in)', value: fmt(regionResult.steelOnly.yBar) },
+                ]}
+              />
+              <ResultCaseCard
+                title="Composite (n)"
+                metrics={[
+                  { key: 'n-i', label: 'I (in⁴)', value: fmt(regionResult.compositeN.i) },
+                  { key: 'n-s-top-slab', label: <>S<sub>top slab</sub> (in³)</>, value: fmt(regionResult.compositeN.sectionModulus.topOfSlab) },
+                  { key: 'n-s-top-steel', label: 'S top steel (in³)', value: fmt(regionResult.compositeN.sectionModulus.topOfSteel) },
+                  { key: 'n-s-bottom-steel', label: 'S bottom steel (in³)', value: fmt(regionResult.compositeN.sectionModulus.bottomOfSteel) },
+                  { key: 'n-na', label: 'NA y from steel bottom (in)', value: fmt(regionResult.compositeN.yBar) },
+                ]}
+              />
+              <ResultCaseCard
+                title="Composite (3n)"
+                metrics={[
+                  { key: '3n-i', label: 'I (in⁴)', value: fmt(regionResult.composite3N.i) },
+                  { key: '3n-s-top-slab', label: <>S<sub>top slab</sub> (in³)</>, value: fmt(regionResult.composite3N.sectionModulus.topOfSlab) },
+                  { key: '3n-s-top-steel', label: 'S top steel (in³)', value: fmt(regionResult.composite3N.sectionModulus.topOfSteel) },
+                  { key: '3n-s-bottom-steel', label: 'S bottom steel (in³)', value: fmt(regionResult.composite3N.sectionModulus.bottomOfSteel) },
+                  { key: '3n-na', label: 'NA y from steel bottom (in)', value: fmt(regionResult.composite3N.yBar) },
+                ]}
+              />
+              {regionResult.key !== 'positive' ? (
+                <ResultCaseCard
+                  title="Composite (cracked, negative)"
+                  metrics={[
+                    { key: 'cr-i', label: 'I cracked (in⁴)', value: fmt(regionResult.crackedNegative.iCracked) },
+                    { key: 'cr-s-top', label: 'S top steel (in³)', value: fmt(regionResult.crackedNegative.sectionModulus.topOfSteel) },
+                    { key: 'cr-s-bottom', label: 'S bottom steel (in³)', value: fmt(regionResult.crackedNegative.sectionModulus.bottomOfSteel) },
+                    { key: 'cr-na', label: 'NA y from steel bottom (in)', value: fmt(regionResult.crackedNegative.neutralAxis) },
+                  ]}
+                />
+              ) : null}
             </div>
 
-            <h4>Neutral axis + inertia</h4>
-            <ul>
-              <li>Composite (n) NA = {fmt(regionResult.compositeN.yBar)} in from bottom of steel.</li>
-              <li>Composite (n) I = {fmt(regionResult.compositeN.i)} in⁴ via parallel-axis summation.</li>
-              <li>Composite (3n) NA = {fmt(regionResult.composite3N.yBar)} in from bottom of steel.</li>
-              <li>Composite (3n) I = {fmt(regionResult.composite3N.i)} in⁴ via parallel-axis summation.</li>
-              {regionResult.key !== 'positive' ? (
-                <>
-                  <li>
-                    Cracked negative NA solved by binary search = {fmt(regionResult.crackedNegative.neutralAxis)} in.
-                  </li>
-                  <li>Cracked negative I = {fmt(regionResult.crackedNegative.iCracked)} in⁴.</li>
-                </>
-              ) : null}
-            </ul>
-          </details>
-        </section>
-      ))}
+            <details className={styles.detailExpander}>
+              <summary>Expand full calculations</summary>
+              <h4>Transformed components</h4>
+              <div className={styles.detailGrid}>
+                <article>
+                  <h5>Composite (n)</h5>
+                  <table className={styles.resultTable}>
+                    <thead>
+                      <tr>
+                        <th>Component</th>
+                        <th>Area (in²)</th>
+                        <th>y (in)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {regionResult.compositeN.components.map((component) => (
+                        <tr key={`n-${component.name}`}>
+                          <td>{component.name}</td>
+                          <td>{fmt(component.area)}</td>
+                          <td>{fmt(component.y)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </article>
+
+                <article>
+                  <h5>Composite (3n)</h5>
+                  <table className={styles.resultTable}>
+                    <thead>
+                      <tr>
+                        <th>Component</th>
+                        <th>Area (in²)</th>
+                        <th>y (in)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {regionResult.composite3N.components.map((component) => (
+                        <tr key={`3n-${component.name}`}>
+                          <td>{component.name}</td>
+                          <td>{fmt(component.area)}</td>
+                          <td>{fmt(component.y)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </article>
+              </div>
+            </details>
+          </section>
+        ))
+        : null}
     </div>
   );
 }

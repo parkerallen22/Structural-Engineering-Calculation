@@ -2,6 +2,7 @@
   display: grid;
   gap: 1rem;
   padding: 1rem 0 2rem;
+  max-width: 760px;
 }
 
 .pageHeader h1 {
@@ -26,24 +27,10 @@
   padding: 0.75rem;
 }
 
-.gridTwo,
-.gridThree,
-.gridFour {
+.stackFields {
   display: grid;
   gap: 0.75rem;
   align-items: start;
-}
-
-.gridTwo {
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-}
-
-.gridThree {
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-}
-
-.gridFour {
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
 }
 
 .field {
@@ -62,7 +49,8 @@
   width: 100%;
   border: 1px solid #cbd5e1;
   border-radius: 6px;
-  padding: 0.45rem 0.5rem;
+  padding: 0.55rem 0.6rem;
+  text-align: left;
 }
 
 .field small {
@@ -86,15 +74,17 @@
   margin-top: 0.75rem;
   display: flex;
   gap: 0.75rem;
+  flex-wrap: wrap;
 }
 
 .actionRow button {
   border: 1px solid #111827;
   background: #111827;
   color: #fff;
-  border-radius: 6px;
-  padding: 0.5rem 0.8rem;
+  border-radius: 8px;
+  padding: 0.6rem 1rem;
   cursor: pointer;
+  font-weight: 600;
 }
 
 .actionRow button:first-child {
@@ -102,9 +92,62 @@
   color: #111827;
 }
 
+.calculateButton {
+  font-size: 1.1rem;
+  padding: 0.75rem 1.4rem;
+}
+
 .actionRow button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.summaryGrid {
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.summaryItem {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 0.65rem;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.resultCases {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.resultCaseCard {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 0.75rem;
+}
+
+.resultCaseCard h4 {
+  margin: 0 0 0.5rem;
+}
+
+.metricGrid {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.metricItem {
+  border: 1px solid #f1f5f9;
+  border-radius: 6px;
+  padding: 0.45rem 0.55rem;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.metricItem span {
+  color: #475569;
+  font-size: 0.86rem;
 }
 
 .resultTable {
@@ -137,4 +180,57 @@
   display: grid;
   gap: 0.75rem;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.detailExpander summary {
+  cursor: pointer;
+  margin-top: 0.25rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  width: fit-content;
+  background: #f8fafc;
+}
+
+@media (prefers-color-scheme: dark) {
+  .pageHeader p,
+  .inlineNote,
+  .metricItem span,
+  .field em,
+  .field small {
+    color: #cbd5e1;
+  }
+
+  .sectionCard,
+  .groupCard,
+  .summaryItem,
+  .resultCaseCard,
+  .metricItem,
+  .detailExpander summary {
+    background: #050505;
+    border-color: #1f2937;
+    color: #f8fafc;
+  }
+
+  .resultTable thead {
+    background: #090909;
+  }
+
+  .resultTable th,
+  .resultTable td {
+    border-color: #1f2937;
+  }
+
+  .field input,
+  .field select {
+    background: #0a0a0a;
+    color: #f8fafc;
+    border-color: #334155;
+  }
+
+  .actionRow button:first-child {
+    background: #000;
+    color: #fff;
+    border-color: #334155;
+  }
 }
