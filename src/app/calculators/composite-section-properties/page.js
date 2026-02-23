@@ -194,7 +194,7 @@ function LinearDimension({
   const midX = (start.x + end.x) / 2;
   const midY = (start.y + end.y) / 2;
   const textX = isHorizontal ? midX + labelShift : midX + textOffset;
-  const textY = isHorizontal ? midY - 10 + textOffset : midY + labelShift;
+  const textY = isHorizontal ? midY - 20 + textOffset : midY + labelShift;
   const extA = isHorizontal
     ? { x1: from, y1: extFrom, x2: from, y2: dimAt }
     : { x1: extFrom, y1: from, x2: dimAt, y2: from };
@@ -213,7 +213,7 @@ function LinearDimension({
       <line x1={start.x} y1={start.y} x2={end.x} y2={end.y} className={styles.dimStroke} />
       <DimArrow x={start.x} y={start.y} {...startDir} />
       <DimArrow x={end.x} y={end.y} {...endDir} />
-      {withLeader ? <line x1={midX} y1={midY} x2={textX - 6} y2={textY - 4} className={styles.dimStroke} /> : null}
+      {withLeader ? <line x1={midX} y1={midY} x2={textX - 12} y2={textY - 8} className={styles.dimStroke} /> : null}
       <text x={textX} y={textY} transform={rotate} className={styles.dimensionText} textAnchor="middle">{label}</text>
     </g>
   );
@@ -282,15 +282,15 @@ function SectionSketch({ region, title }) {
           {barXs.map((x) => <circle key={`bb-${x}`} cx={x} cy={bottomBarsY} r="5" className={styles.rebarDotBottom} />)}
 
           <LinearDimension kind="horizontal" from={leftSlab} to={rightSlab} dimAt={64} extFrom={slabY - 14} extTo={slabY - 14} label={bEff} />
-          <LinearDimension kind="vertical" from={slabY} to={slabY + slabH} dimAt={112} extFrom={leftSlab - 14} extTo={leftSlab - 14} label={tSlab} inward textOffset={-20} />
-          <LinearDimension kind="vertical" from={slabY + slabH} to={steelTopY} dimAt={146} extFrom={centerX - haunchW / 2 - 10} extTo={centerX - haunchW / 2 - 10} label={tHaunch} inward textOffset={-18} />
-          <LinearDimension kind="vertical" from={steelTopY} to={steelBottomY} dimAt={84} extFrom={leftTopFlange - 16} extTo={leftBottomFlange - 16} label={D} textOffset={-22} />
+          <LinearDimension kind="vertical" from={slabY} to={slabY + slabH} dimAt={112} extFrom={leftSlab - 14} extTo={leftSlab - 14} label={tSlab} inward textOffset={-36} />
+          <LinearDimension kind="vertical" from={slabY + slabH} to={steelTopY} dimAt={146} extFrom={centerX - haunchW / 2 - 10} extTo={centerX - haunchW / 2 - 10} label={tHaunch} inward textOffset={-34} />
+          <LinearDimension kind="vertical" from={steelTopY} to={steelBottomY} dimAt={84} extFrom={leftTopFlange - 16} extTo={leftBottomFlange - 16} label={D} textOffset={-40} />
 
           <LinearDimension kind="horizontal" from={leftTopFlange} to={rightTopFlange} dimAt={255} extFrom={steelTopY - 10} extTo={steelTopY - 10} label={bfTop} />
           <LinearDimension kind="horizontal" from={leftBottomFlange} to={rightBottomFlange} dimAt={505} extFrom={steelBottomY - bottomFlangeH + 10} extTo={steelBottomY - bottomFlangeH + 10} label={bfBot} />
-          <LinearDimension kind="horizontal" from={leftWeb} to={rightWeb} dimAt={378} extFrom={steelTopY + topFlangeH + 10} extTo={steelTopY + topFlangeH + 10} label={tw} inward withLeader labelShift={74} />
-          <LinearDimension kind="vertical" from={steelTopY} to={steelTopY + topFlangeH} dimAt={640} extFrom={rightTopFlange + 10} extTo={rightTopFlange + 10} label={tfTop} inward textOffset={18} />
-          <LinearDimension kind="vertical" from={steelBottomY - bottomFlangeH} to={steelBottomY} dimAt={640} extFrom={rightBottomFlange + 10} extTo={rightBottomFlange + 10} label={tfBot} inward textOffset={18} />
+          <LinearDimension kind="horizontal" from={leftWeb} to={rightWeb} dimAt={378} extFrom={steelTopY + topFlangeH + 10} extTo={steelTopY + topFlangeH + 10} label={tw} inward withLeader labelShift={102} />
+          <LinearDimension kind="vertical" from={steelTopY} to={steelTopY + topFlangeH} dimAt={640} extFrom={rightTopFlange + 10} extTo={rightTopFlange + 10} label={tfTop} inward textOffset={32} />
+          <LinearDimension kind="vertical" from={steelBottomY - bottomFlangeH} to={steelBottomY} dimAt={640} extFrom={rightBottomFlange + 10} extTo={rightBottomFlange + 10} label={tfBot} inward textOffset={32} />
 
           <text x="700" y="120" className={styles.calloutText}>{topCallout}</text>
           <polyline points={`686,112 650,112 ${barXs[4]},${topBarsY - 6}`} className={styles.dimStroke} fill="none" />
