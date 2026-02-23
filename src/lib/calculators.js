@@ -9,6 +9,14 @@ export const calculatorCategories = [
 
 export const calculators = [
   {
+    slug: 'composite-section-properties',
+    name: 'Composite Steel Beam + Concrete Deck Section Properties',
+    description: 'Computes I and section moduli for steel-only and composite transforms (n, 3n, cracked negative).',
+    category: 'Beams',
+    tags: ['Steel', 'Composite', 'Deck'],
+    keywords: ['composite', 'section properties', 'transformed section', 'modular ratio', 'cracked'],
+  },
+  {
     slug: 'steel-beam-bending-aisc',
     name: 'Steel Beam Bending (AISC)',
     description: 'Check compactness, strength, and demand/capacity for steel beams.',

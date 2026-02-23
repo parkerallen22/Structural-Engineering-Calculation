@@ -22,3 +22,5 @@ To add a new calculator, append a new object with:
 - `keywords`
 
 The Home page (`/`) and Calculators page (`/calculators`) both read from this single source of truth.
+
+Current calculators include `composite-section-properties` for composite steel beam + deck transformed-section properties and PDF reporting.
