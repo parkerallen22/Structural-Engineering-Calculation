@@ -1,9 +1,41 @@
 'use client';
 
+import { useEffect, useId, useRef, useState } from 'react';
+
 import styles from './page.module.css';
 
 export const STORAGE_KEY = 'composite-section-properties:run';
 export const DRAFT_STORAGE_KEY = 'composite-section-properties:draft';
+
+export const FIELD_DEFINITIONS = {
+  D: 'Depth of steel beam.',
+  Es: 'Modulus of elasticity of steel.',
+  fc: 'Concrete compressive strength.',
+  Ec: 'Modulus of elasticity of concrete.',
+  tw: 'Thickness of the beam web.',
+  tfTop: 'Thickness of the top flange.',
+  bfTop: 'Width of the top flange.',
+  tfBot: 'Thickness of the bottom flange.',
+  bfBot: 'Width of the bottom flange.',
+  tHaunch: 'Haunch thickness between beam and slab.',
+  tSlab: 'Concrete slab thickness.',
+  bEff: 'Effective slab width used in composite action.',
+  topBarSize: 'Top reinforcement bar size.',
+  topBarSpacing: 'Center-to-center spacing of top reinforcement bars.',
+  topAltBarSize: 'Alternate top reinforcement bar size when alternating bars are used.',
+  topAltBarSpacing: 'Center-to-center spacing of alternate top reinforcement bars.',
+  bottomBarSize: 'Bottom reinforcement bar size.',
+  bottomBarSpacing: 'Center-to-center spacing of bottom reinforcement bars.',
+  bottomAltBarSize: 'Alternate bottom reinforcement bar size when alternating bars are used.',
+  bottomAltBarSpacing: 'Center-to-center spacing of alternate bottom reinforcement bars.',
+  topClearCover: 'Clear distance from concrete face to top reinforcement.',
+  bottomClearCover: 'Clear distance from concrete face to bottom reinforcement.',
+  positiveSameAsNegative: 'Use the same geometry and reinforcement for positive and negative regions.',
+  topEqualsBottomFlange: 'Bottom flange dimensions mirror the top flange dimensions.',
+  autoEc: 'Automatically compute Ec from concrete strength.',
+  topAlternatingBars: 'Enable alternating bar sizes in top reinforcement.',
+  bottomAlternatingBars: 'Enable alternating bar sizes in bottom reinforcement.',
+};
 
 export function fmt(value, digits = 3) {
   if (value == null || Number.isNaN(value)) return '—';
@@ -105,6 +137,45 @@ export function parseDraft(draft) {
   return { parsed, errors };
 }
 
+export function getInputSummaryRows(input) {
+  const region = input.negative;
+  return [
+    { key: 'D', label: <VarLabel base="D" />, value: fmt(region.D), unit: 'in' },
+    { key: 'tw', label: <VarLabel base="t" sub="w" />, value: fmt(region.tw), unit: 'in' },
+    { key: 'tfTop', label: <VarLabel base="t" sub="f,top" />, value: fmt(region.tfTop), unit: 'in' },
+    { key: 'bfTop', label: <VarLabel base="b" sub="f,top" />, value: fmt(region.bfTop), unit: 'in' },
+    { key: 'tfBot', label: <VarLabel base="t" sub="f,bot" />, value: fmt(region.tfBot), unit: 'in' },
+    { key: 'bfBot', label: <VarLabel base="b" sub="f,bot" />, value: fmt(region.bfBot), unit: 'in' },
+    { key: 'tHaunch', label: <VarLabel base="t" sub="haunch" />, value: fmt(region.tHaunch), unit: 'in' },
+    { key: 'tSlab', label: <VarLabel base="t" sub="slab" />, value: fmt(region.tSlab), unit: 'in' },
+    { key: 'bEff', label: <VarLabel base="b" sub="eff" />, value: fmt(region.bEff), unit: 'in' },
+    { key: 'Es', label: <VarLabel base="E" sub="s" />, value: fmt(input.materials.Es), unit: 'ksi' },
+    { key: 'fc', label: <VarLabel base="f'c" />, value: fmt(input.materials.fc), unit: 'ksi' },
+    { key: 'topBars', label: 'Top bars', value: `${region.rebarTop.barSize} @ ${fmt(region.rebarTop.spacing)}`, unit: 'in' },
+    { key: 'bottomBars', label: 'Bottom bars', value: `${region.rebarBottom.barSize} @ ${fmt(region.rebarBottom.spacing)}`, unit: 'in' },
+    { key: 'topClear', label: 'Top clear cover', value: fmt(region.rebarTop.clearDistance), unit: 'in' },
+    { key: 'bottomClear', label: 'Bottom clear cover', value: fmt(region.rebarBottom.clearDistance), unit: 'in' },
+  ];
+}
+
+export function InputSummary({ input }) {
+  const rows = getInputSummaryRows(input);
+
+  return (
+    <div className={styles.inputSummaryGrid}>
+      {rows.map((row) => (
+        <p key={row.key} className={styles.summaryLine}>
+          <span className={styles.summaryItemLabel}>{row.label}</span>
+          <span className={styles.summaryEquals}>=</span>
+          <strong className={styles.summaryItemValue}>
+            {row.value} {row.unit}
+          </strong>
+        </p>
+      ))}
+    </div>
+  );
+}
+
 export function saveRun(payload) {
   if (typeof window === 'undefined') return;
   window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
@@ -139,4 +210,70 @@ export function getSavedRun() {
 
 export function Chevron({ open }) {
   return <span className={`${styles.chevron} ${open ? styles.chevronOpen : ''}`}>⌄</span>;
+}
+
+export function LabelWithInfo({ label, info }) {
+  return (
+    <span className={styles.labelWithInfo}>
+      <span>{label}</span>
+      {info ? <InfoTooltip text={info} /> : null}
+    </span>
+  );
+}
+
+export function InfoTooltip({ text }) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef(null);
+  const tooltipId = useId();
+
+  useEffect(() => {
+    if (!open) return undefined;
+
+    const onDocumentClick = (event) => {
+      if (!containerRef.current?.contains(event.target)) {
+        setOpen(false);
+      }
+    };
+
+    const onEscape = (event) => {
+      if (event.key === 'Escape') {
+        setOpen(false);
+      }
+    };
+
+    window.addEventListener('mousedown', onDocumentClick);
+    window.addEventListener('touchstart', onDocumentClick);
+    window.addEventListener('keydown', onEscape);
+
+    return () => {
+      window.removeEventListener('mousedown', onDocumentClick);
+      window.removeEventListener('touchstart', onDocumentClick);
+      window.removeEventListener('keydown', onEscape);
+    };
+  }, [open]);
+
+  return (
+    <span
+      className={styles.infoTooltipWrap}
+      ref={containerRef}
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      <button
+        type="button"
+        className={styles.infoIcon}
+        aria-label={`Info: ${text}`}
+        aria-expanded={open}
+        aria-describedby={open ? tooltipId : undefined}
+        onClick={() => setOpen((previous) => !previous)}
+      >
+        i
+      </button>
+      {open ? (
+        <span role="tooltip" id={tooltipId} className={styles.infoPopover}>
+          {text}
+        </span>
+      ) : null}
+    </span>
+  );
 }

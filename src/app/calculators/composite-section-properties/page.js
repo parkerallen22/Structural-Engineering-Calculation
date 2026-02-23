@@ -4,14 +4,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { computeSectionProps, getDefaultInput, getRebarOptions } from '@/lib/compositeSectionProps';
 import styles from './page.module.css';
-import { Chevron, DRAFT_STORAGE_KEY, VarLabel, parseDraft, saveDraft, saveRun } from './ui';
+import { Chevron, DRAFT_STORAGE_KEY, FIELD_DEFINITIONS, LabelWithInfo, VarLabel, parseDraft, saveDraft, saveRun } from './ui';
 
 const rebarOptions = getRebarOptions();
 
-function NumberField({ label, value, onChange, unit, note, placeholder }) {
+function NumberField({ label, info, value, onChange, unit, note, placeholder }) {
   return (
     <label className={styles.field}>
-      <span className={styles.fieldLabel}>{label}</span>
+      <span className={styles.fieldLabel}><LabelWithInfo label={label} info={info} /></span>
       <div className={styles.inputWrap}>
         <input
           type="text"
@@ -27,7 +27,7 @@ function NumberField({ label, value, onChange, unit, note, placeholder }) {
   );
 }
 
-function Toggle({ checked, onChange, label, helperText }) {
+function Toggle({ checked, onChange, label, helperText, info }) {
   return (
     <div className={styles.toggleRow}>
       <label className={styles.switch}>
@@ -35,7 +35,7 @@ function Toggle({ checked, onChange, label, helperText }) {
         <span className={styles.slider} />
       </label>
       <div>
-        <p>{label}</p>
+        <p><LabelWithInfo label={label} info={info} /></p>
         {helperText ? <small>{helperText}</small> : null}
       </div>
     </div>
@@ -55,18 +55,18 @@ function Collapsible({ title, children, defaultOpen = true }) {
   );
 }
 
-function RebarBarRow({ label, barSize, spacing, onBarSizeChange, onSpacingChange }) {
+function RebarBarRow({ label, barSize, spacing, onBarSizeChange, onSpacingChange, sizeInfo, spacingInfo }) {
   return (
     <div className={styles.inputGrid}>
       <label className={styles.field}>
-        <span className={styles.fieldLabel}>{label} Size</span>
+        <span className={styles.fieldLabel}><LabelWithInfo label={`${label} Size`} info={sizeInfo} /></span>
         <select value={barSize} onChange={(event) => onBarSizeChange(event.target.value)}>
           {rebarOptions.map((option) => (
             <option key={option} value={option}>{option}</option>
           ))}
         </select>
       </label>
-      <NumberField label={`${label} Spacing (in)`} value={spacing} onChange={onSpacingChange} />
+      <NumberField label={`${label} Spacing (in)`} info={spacingInfo} value={spacing} onChange={onSpacingChange} />
     </div>
   );
 }
@@ -78,25 +78,30 @@ function RebarMatEditor({ mat, onChange, title }) {
         label="Bar"
         barSize={mat.barSize}
         spacing={mat.spacing}
+        sizeInfo={title.includes('Top') ? FIELD_DEFINITIONS.topBarSize : FIELD_DEFINITIONS.bottomBarSize}
+        spacingInfo={title.includes('Top') ? FIELD_DEFINITIONS.topBarSpacing : FIELD_DEFINITIONS.bottomBarSpacing}
         onBarSizeChange={(barSize) => onChange({ ...mat, barSize })}
         onSpacingChange={(spacing) => onChange({ ...mat, spacing })}
       />
       <div className={styles.inputGrid}>
         <NumberField
           label={<span><VarLabel base="c" unit="in" /> clear distance</span>}
+          info={title.includes('Top') ? FIELD_DEFINITIONS.topClearCover : FIELD_DEFINITIONS.bottomClearCover}
           value={mat.clearDistance}
           onChange={(clearDistance) => onChange({ ...mat, clearDistance })}
           note="From concrete face to outside of bar."
         />
       </div>
       <div className={styles.toggleInline}>
-        <Toggle checked={mat.alternatingBars} onChange={(event) => onChange({ ...mat, alternatingBars: event.target.checked })} label="Alternating Bars" />
+        <Toggle checked={mat.alternatingBars} onChange={(event) => onChange({ ...mat, alternatingBars: event.target.checked })} label="Alternating Bars" info={title.includes('Top') ? FIELD_DEFINITIONS.topAlternatingBars : FIELD_DEFINITIONS.bottomAlternatingBars} />
       </div>
       {mat.alternatingBars ? (
         <RebarBarRow
           label="Second Bar"
           barSize={mat.altBarSize}
           spacing={mat.altSpacing}
+          sizeInfo={title.includes('Top') ? FIELD_DEFINITIONS.topAltBarSize : FIELD_DEFINITIONS.bottomAltBarSize}
+          spacingInfo={title.includes('Top') ? FIELD_DEFINITIONS.topAltBarSpacing : FIELD_DEFINITIONS.bottomAltBarSpacing}
           onBarSizeChange={(altBarSize) => onChange({ ...mat, altBarSize })}
           onSpacingChange={(altSpacing) => onChange({ ...mat, altSpacing })}
         />
@@ -110,14 +115,14 @@ function RegionEditor({ title, region, onChange, topEqualsBottomFlange }) {
     <Collapsible title={title}>
       <h4>Steel Geometry</h4>
       <div className={styles.inputGrid}>
-        <NumberField label={<VarLabel base="D" unit="in" />} value={region.D} onChange={(value) => onChange({ ...region, D: value })} />
-        <NumberField label={<VarLabel base="t" sub="w" unit="in" />} value={region.tw} onChange={(value) => onChange({ ...region, tw: value })} />
-        <NumberField label={<VarLabel base="t" sub="f,top" unit="in" />} value={region.tfTop} onChange={(value) => onChange({ ...region, tfTop: value })} />
-        <NumberField label={<VarLabel base="b" sub="f,top" unit="in" />} value={region.bfTop} onChange={(value) => onChange({ ...region, bfTop: value })} />
+        <NumberField label={<VarLabel base="D" unit="in" />} info={FIELD_DEFINITIONS.D} value={region.D} onChange={(value) => onChange({ ...region, D: value })} />
+        <NumberField label={<VarLabel base="t" sub="w" unit="in" />} info={FIELD_DEFINITIONS.tw} value={region.tw} onChange={(value) => onChange({ ...region, tw: value })} />
+        <NumberField label={<VarLabel base="t" sub="f,top" unit="in" />} info={FIELD_DEFINITIONS.tfTop} value={region.tfTop} onChange={(value) => onChange({ ...region, tfTop: value })} />
+        <NumberField label={<VarLabel base="b" sub="f,top" unit="in" />} info={FIELD_DEFINITIONS.bfTop} value={region.bfTop} onChange={(value) => onChange({ ...region, bfTop: value })} />
         {!topEqualsBottomFlange ? (
           <>
-            <NumberField label={<VarLabel base="t" sub="f,bot" unit="in" />} value={region.tfBot} onChange={(value) => onChange({ ...region, tfBot: value })} />
-            <NumberField label={<VarLabel base="b" sub="f,bot" unit="in" />} value={region.bfBot} onChange={(value) => onChange({ ...region, bfBot: value })} />
+            <NumberField label={<VarLabel base="t" sub="f,bot" unit="in" />} info={FIELD_DEFINITIONS.tfBot} value={region.tfBot} onChange={(value) => onChange({ ...region, tfBot: value })} />
+            <NumberField label={<VarLabel base="b" sub="f,bot" unit="in" />} info={FIELD_DEFINITIONS.bfBot} value={region.bfBot} onChange={(value) => onChange({ ...region, bfBot: value })} />
           </>
         ) : (
           <p className={styles.inlineBadge}>Mirroring Enabled</p>
@@ -125,12 +130,12 @@ function RegionEditor({ title, region, onChange, topEqualsBottomFlange }) {
       </div>
       <h4>Deck + Haunch</h4>
       <div className={styles.inputGrid}>
-        <NumberField label={<VarLabel base="t" sub="haunch" unit="in" />} value={region.tHaunch} onChange={(value) => onChange({ ...region, tHaunch: value })} />
-        <NumberField label={<VarLabel base="t" sub="slab" unit="in" />} value={region.tSlab} onChange={(value) => onChange({ ...region, tSlab: value })} />
+        <NumberField label={<VarLabel base="t" sub="haunch" unit="in" />} info={FIELD_DEFINITIONS.tHaunch} value={region.tHaunch} onChange={(value) => onChange({ ...region, tHaunch: value })} />
+        <NumberField label={<VarLabel base="t" sub="slab" unit="in" />} info={FIELD_DEFINITIONS.tSlab} value={region.tSlab} onChange={(value) => onChange({ ...region, tSlab: value })} />
       </div>
       <h4>Effective Deck Width</h4>
       <div className={styles.inputGrid}>
-        <NumberField label={<VarLabel base="b" sub="eff" unit="in" />} value={region.bEff} onChange={(value) => onChange({ ...region, bEff: value })} />
+        <NumberField label={<VarLabel base="b" sub="eff" unit="in" />} info={FIELD_DEFINITIONS.bEff} value={region.bEff} onChange={(value) => onChange({ ...region, bEff: value })} />
       </div>
       <h4>Reinforcement</h4>
       <div className={styles.nestedStack}>
@@ -232,15 +237,15 @@ export default function CompositeSectionPropertiesPage() {
           <article className={styles.sectionCard}>
             <h2>Global Controls</h2>
             <div className={styles.stackMd}>
-              <Toggle checked={draft.positiveSameAsNegative} onChange={(event) => setDraft((previous) => ({ ...previous, positiveSameAsNegative: event.target.checked }))} label="Positive Same As Negative" helperText="Use one set of inputs for both regions." />
-              <Toggle checked={draft.topEqualsBottomFlange} onChange={(event) => setDraft((previous) => ({ ...previous, topEqualsBottomFlange: event.target.checked }))} label="W-Shape" helperText="Bottom flange mirrors top flange." />
+              <Toggle checked={draft.positiveSameAsNegative} onChange={(event) => setDraft((previous) => ({ ...previous, positiveSameAsNegative: event.target.checked }))} label="Positive Same As Negative" info={FIELD_DEFINITIONS.positiveSameAsNegative} helperText="Use one set of inputs for both regions." />
+              <Toggle checked={draft.topEqualsBottomFlange} onChange={(event) => setDraft((previous) => ({ ...previous, topEqualsBottomFlange: event.target.checked }))} label="W-Shape" info={FIELD_DEFINITIONS.topEqualsBottomFlange} helperText="Bottom flange mirrors top flange." />
             </div>
           </article>
           <article className={styles.sectionCard}><h2>Material Properties</h2><div className={styles.inputGrid}>
-            <NumberField label={<VarLabel base="E" sub="s" unit="ksi" />} value={draft.materials.Es} onChange={(value) => setDraft((previous) => ({ ...previous, materials: { ...previous.materials, Es: value } }))} />
-            <NumberField label={<span><VarLabel base="f'c" unit="ksi" /></span>} value={draft.materials.fc} onChange={(value) => setDraft((previous) => ({ ...previous, materials: { ...previous.materials, fc: value } }))} />
-            <Toggle checked={draft.materials.autoEc} onChange={(event) => setDraft((previous) => ({ ...previous, materials: { ...previous.materials, autoEc: event.target.checked } }))} label="Auto-calculate Ec" />
-            {!draft.materials.autoEc ? <NumberField label={<VarLabel base="E" sub="c" unit="ksi" />} value={draft.materials.EcManual} onChange={(value) => setDraft((previous) => ({ ...previous, materials: { ...previous.materials, EcManual: value } }))} /> : null}
+            <NumberField label={<VarLabel base="E" sub="s" unit="ksi" />} info={FIELD_DEFINITIONS.Es} value={draft.materials.Es} onChange={(value) => setDraft((previous) => ({ ...previous, materials: { ...previous.materials, Es: value } }))} />
+            <NumberField label={<span><VarLabel base="f'c" unit="ksi" /></span>} info={FIELD_DEFINITIONS.fc} value={draft.materials.fc} onChange={(value) => setDraft((previous) => ({ ...previous, materials: { ...previous.materials, fc: value } }))} />
+            <Toggle checked={draft.materials.autoEc} onChange={(event) => setDraft((previous) => ({ ...previous, materials: { ...previous.materials, autoEc: event.target.checked } }))} label="Auto-calculate Ec" info={FIELD_DEFINITIONS.autoEc} />
+            {!draft.materials.autoEc ? <NumberField label={<VarLabel base="E" sub="c" unit="ksi" />} info={FIELD_DEFINITIONS.Ec} value={draft.materials.EcManual} onChange={(value) => setDraft((previous) => ({ ...previous, materials: { ...previous.materials, EcManual: value } }))} /> : null}
           </div></article>
           <div className={styles.tempActions}>
             <button type="button" className={styles.secondaryButton} onClick={handleAutoFillTemp}>Auto Fill (TEMP)</button>

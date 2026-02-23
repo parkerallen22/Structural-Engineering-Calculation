@@ -4,70 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import styles from '../page.module.css';
-import { fmt, getSavedRun } from '../ui';
-
-function groupedInputRows(input) {
-  const region = input.negative;
-  return [
-    {
-      group: 'Material',
-      rows: [
-        ['Es', fmt(input.materials.Es), 'ksi'],
-        ["f’c", fmt(input.materials.fc), 'ksi'],
-        ['Ec Mode', input.materials.autoEc ? 'Auto' : 'Manual', '—'],
-        ['Ec (manual)', fmt(input.materials.EcManual), 'ksi'],
-      ],
-    },
-    {
-      group: 'Steel Section',
-      rows: [
-        ['D', fmt(region.D), 'in'],
-        ['tw', fmt(region.tw), 'in'],
-        ['tf_top', fmt(region.tfTop), 'in'],
-        ['bf_top', fmt(region.bfTop), 'in'],
-        ['tf_bot', fmt(region.tfBot), 'in'],
-        ['bf_bot', fmt(region.bfBot), 'in'],
-      ],
-    },
-    {
-      group: 'Slab / Composite',
-      rows: [
-        ['thaunch', fmt(region.tHaunch), 'in'],
-        ['tslab', fmt(region.tSlab), 'in'],
-        ['beff', fmt(region.bEff), 'in'],
-      ],
-    },
-    {
-      group: 'Reinforcement (Top)',
-      rows: [
-        ['Bar', region.rebarTop.barSize, '—'],
-        ['Spacing', fmt(region.rebarTop.spacing), 'in'],
-        ['Clear cover', fmt(region.rebarTop.clearDistance), 'in'],
-        ['Alternating', region.rebarTop.alternatingBars ? 'ON' : 'OFF', '—'],
-        ['Second Bar', region.rebarTop.altBarSize, '—'],
-        ['Second Bar Spacing', fmt(region.rebarTop.altSpacing), 'in'],
-      ],
-    },
-    {
-      group: 'Reinforcement (Bottom)',
-      rows: [
-        ['Bar', region.rebarBottom.barSize, '—'],
-        ['Spacing', fmt(region.rebarBottom.spacing), 'in'],
-        ['Clear cover', fmt(region.rebarBottom.clearDistance), 'in'],
-        ['Alternating', region.rebarBottom.alternatingBars ? 'ON' : 'OFF', '—'],
-        ['Second Bar', region.rebarBottom.altBarSize, '—'],
-        ['Second Bar Spacing', fmt(region.rebarBottom.altSpacing), 'in'],
-      ],
-    },
-    {
-      group: 'Toggles / Assumptions',
-      rows: [
-        ['Positive Same As Negative', input.positiveSameAsNegative ? 'ON' : 'OFF', '—'],
-        ['W-Shape mirror', input.topEqualsBottomFlange ? 'ON' : 'OFF', '—'],
-      ],
-    },
-  ];
-}
+import { InputSummary, fmt, getSavedRun } from '../ui';
 
 function CalcRows({ region }) {
   const componentRows = (components) => components.map((component) => (
@@ -140,19 +77,9 @@ export default function CompositeSectionPrintPage() {
 
         <section>
           <h2>A) Inputs</h2>
-          {groupedInputRows(run.input).map((group) => (
-            <div key={group.group} className={styles.printSectionBlock}>
-              <h3>{group.group}</h3>
-              <table className={styles.calcTable}>
-                <thead><tr><th>Item</th><th>Expression</th><th>Value</th><th>Units</th></tr></thead>
-                <tbody>
-                  {group.rows.map(([item, value, units]) => (
-                    <tr key={`${group.group}-${item}`}><td>{item}</td><td>Input</td><td>{value}</td><td>{units}</td></tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ))}
+          <div className={styles.printSectionBlock}>
+            <InputSummary input={run.input} />
+          </div>
         </section>
 
         <section>
