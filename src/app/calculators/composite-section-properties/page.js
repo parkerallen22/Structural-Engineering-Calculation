@@ -210,10 +210,12 @@ function SectionSketch({ region, title }) {
   const tHaunch = toNumber(region.tHaunch, 1);
   const tSlab = toNumber(region.tSlab, 8);
   const bEff = toNumber(region.bEff, 60);
-  const viewWidth = 1100;
-  const viewHeight = 650;
-  const centerX = 550;
-  const topMargin = 80;
+  const viewWidth = 1120;
+  const viewHeight = 700;
+  const viewBoxX = -60;
+  const viewBoxY = -40;
+  const centerX = 500;
+  const topMargin = 88;
 
   const slabW = 600;
   const slabH = 80;
@@ -247,14 +249,14 @@ function SectionSketch({ region, title }) {
     <article className={styles.diagramCard}>
       {title ? <h4>{title}</h4> : null}
       <div className={styles.sectionSketchScroller}>
-        <svg className={styles.sectionSketch} viewBox={`0 0 ${viewWidth} ${viewHeight}`} role="img" aria-label={`Composite section sketch ${title ?? ''}`}>
+        <svg className={styles.sectionSketch} viewBox={`${viewBoxX} ${viewBoxY} ${viewWidth} ${viewHeight}`} role="img" aria-label={`Composite section sketch ${title ?? ''}`}>
         <defs>
-          <marker id={markerId} markerWidth="12" markerHeight="12" refX="6" refY="6" orient="auto-start-reverse">
-            <path d="M0,0 L12,6 L0,12 z" fill="#111827" />
+          <marker id={markerId} markerUnits="strokeWidth" markerWidth="3" markerHeight="3" refX="3" refY="1.5" orient="auto-start-reverse">
+            <path d="M0,0 L3,1.5 L0,3 z" fill="#111827" />
           </marker>
         </defs>
 
-        <rect x="8" y="8" width="984" height="604" rx="14" className={styles.diagramBg} />
+        <rect x="0" y="0" width="1000" height="620" rx="14" className={styles.diagramBg} />
 
         <rect x={centerX - slabW / 2} y={slabY} width={slabW} height={slabH} className={styles.slabShape} />
         <rect x={centerX - topFlangeW / 2} y={haunchY} width={topFlangeW} height={haunchH} className={styles.haunchShape} />
@@ -273,10 +275,10 @@ function SectionSketch({ region, title }) {
         <Dimension markerId={markerId} orientation="vertical" x1={210} y1={slabY} x2={210} y2={haunchY} extA={{ x1: leftSlabEdge, y1: slabY, x2: 210, y2: slabY }} extB={{ x1: leftSlabEdge, y1: haunchY, x2: 210, y2: haunchY }} label={`tslab = ${fmtSketch(tSlab)} in`} className={styles.dimensionLine} textClassName={dimensionTextClass} rotateLabel labelX={190} labelY={(slabY + haunchY) / 2} />
 
         <Dimension markerId={markerId} orientation="horizontal" x1={centerX - topFlangeW / 2} y1={250} x2={centerX + topFlangeW / 2} y2={250} extA={{ x1: centerX - topFlangeW / 2, y1: steelTopY, x2: centerX - topFlangeW / 2, y2: 250 }} extB={{ x1: centerX + topFlangeW / 2, y1: steelTopY, x2: centerX + topFlangeW / 2, y2: 250 }} label={`bf_top = ${fmtSketch(bfTop)} in`} className={styles.dimensionLine} textClassName={dimensionTextClass} labelY={240} />
-        <Dimension markerId={markerId} orientation="horizontal" x1={centerX - bottomFlangeW / 2} y1={618} x2={centerX + bottomFlangeW / 2} y2={618} extA={{ x1: centerX - bottomFlangeW / 2, y1: baseY - bottomFlangeH, x2: centerX - bottomFlangeW / 2, y2: 618 }} extB={{ x1: centerX + bottomFlangeW / 2, y1: baseY - bottomFlangeH, x2: centerX + bottomFlangeW / 2, y2: 618 }} label={`bf_bottom = ${fmtSketch(bfBot)} in`} className={styles.dimensionLine} textClassName={dimensionTextClass} labelY={608} />
+        <Dimension markerId={markerId} orientation="horizontal" x1={centerX - bottomFlangeW / 2} y1={600} x2={centerX + bottomFlangeW / 2} y2={600} extA={{ x1: centerX - bottomFlangeW / 2, y1: baseY - bottomFlangeH, x2: centerX - bottomFlangeW / 2, y2: 600 }} extB={{ x1: centerX + bottomFlangeW / 2, y1: baseY - bottomFlangeH, x2: centerX + bottomFlangeW / 2, y2: 600 }} label={`bf_bottom = ${fmtSketch(bfBot)} in`} className={styles.dimensionLine} textClassName={dimensionTextClass} labelY={590} />
         <Dimension markerId={markerId} orientation="horizontal" x1={centerX - webW / 2} y1={400} x2={centerX + webW / 2} y2={400} label={`tw = ${fmtSketch(tw)} in`} className={styles.dimensionLine} textClassName={dimensionTextClass} labelX={625} textAnchor="start" markerStart markerEnd />
-        <Dimension markerId={markerId} orientation="vertical" x1={915} y1={steelTopY} x2={915} y2={steelTopY + topFlangeH} extA={{ x1: rightSteelEdge, y1: steelTopY, x2: 915, y2: steelTopY }} extB={{ x1: rightSteelEdge, y1: steelTopY + topFlangeH, x2: 915, y2: steelTopY + topFlangeH }} label={`tf_top = ${fmtSketch(tfTop)} in`} className={styles.dimensionLine} textClassName={dimensionTextClass} rotateLabel labelX={940} labelY={steelTopY + topFlangeH / 2} />
-        <Dimension markerId={markerId} orientation="vertical" x1={915} y1={baseY - bottomFlangeH} x2={915} y2={baseY} extA={{ x1: rightSteelEdge, y1: baseY - bottomFlangeH, x2: 915, y2: baseY - bottomFlangeH }} extB={{ x1: rightSteelEdge, y1: baseY, x2: 915, y2: baseY }} label={`tf_bottom = ${fmtSketch(tfBot)} in`} className={styles.dimensionLine} textClassName={dimensionTextClass} rotateLabel labelX={940} labelY={baseY - bottomFlangeH / 2} />
+        <Dimension markerId={markerId} orientation="vertical" x1={900} y1={steelTopY} x2={900} y2={steelTopY + topFlangeH} extA={{ x1: rightSteelEdge, y1: steelTopY, x2: 900, y2: steelTopY }} extB={{ x1: rightSteelEdge, y1: steelTopY + topFlangeH, x2: 900, y2: steelTopY + topFlangeH }} label={`tf_top = ${fmtSketch(tfTop)} in`} className={styles.dimensionLine} textClassName={dimensionTextClass} rotateLabel labelX={925} labelY={steelTopY + topFlangeH / 2} />
+        <Dimension markerId={markerId} orientation="vertical" x1={900} y1={baseY - bottomFlangeH} x2={900} y2={baseY} extA={{ x1: rightSteelEdge, y1: baseY - bottomFlangeH, x2: 900, y2: baseY - bottomFlangeH }} extB={{ x1: rightSteelEdge, y1: baseY, x2: 900, y2: baseY }} label={`tf_bottom = ${fmtSketch(tfBot)} in`} className={styles.dimensionLine} textClassName={dimensionTextClass} rotateLabel labelX={925} labelY={baseY - bottomFlangeH / 2} />
 
         <text x="820" y="132" className={dimensionTextClass}>Top: #5 @ 12 in; clear = 2.25 in</text>
         <text x="820" y="168" className={dimensionTextClass}>{bottomNote}</text>
