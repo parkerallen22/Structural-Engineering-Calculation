@@ -9,6 +9,14 @@ export const calculatorCategories = [
 
 export const calculators = [
   {
+    slug: 'composite-steel-girder-lrfd',
+    name: 'Composite Steel Girder (LRFD)',
+    description: 'Multi-span composite steel girder check per AASHTO LRFD (BDS 9th Ed, 2020).',
+    category: 'Beams',
+    tags: ['AASHTO', 'Steel', 'Composite'],
+    keywords: ['girder', 'lrfd', 'composite', 'aashto', 'bridge'],
+  },
+  {
     slug: 'composite-section-properties',
     name: 'Composite Steel Beam + Concrete Deck Section Properties',
     description: 'Computes I and section moduli for steel-only and composite transforms (n, 3n, cracked negative).',
