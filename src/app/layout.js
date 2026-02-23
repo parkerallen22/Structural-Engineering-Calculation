@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import SiteHeader from '@/components/SiteHeader';
 import './globals.css';
 
 export const metadata = {
@@ -12,26 +12,9 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body>
-        <header className="siteHeader">
-          <div className="container navInner">
-            <Link href="/" className="brand">
-              Structural Engineering Calculators
-            </Link>
-            <nav>
-              <ul className="navList">
-                <li>
-                  <Link href="/">Home</Link>
-                </li>
-                <li>
-                  <Link href="/calculators">Calculators</Link>
-                </li>
-                <li>
-                  <Link href="/about">About</Link>
-                </li>
-              </ul>
-            </nav>
-          </div>
-        </header>
+        <SiteHeader />
+
+        
 
         <main className="container mainContent">{children}</main>
 

@@ -1,9 +1,14 @@
+'use client';
+
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import CalculatorBrowser from '@/components/CalculatorBrowser';
-import { calculatorCategories, calculators } from '@/lib/calculators';
+import HomeCarousel from '@/components/HomeCarousel';
+import { calculators } from '@/lib/calculators';
 import styles from './page.module.css';
 
 export default function HomePage() {
+  const router = useRouter();
+
   return (
     <>
       <section className={styles.hero}>
@@ -11,20 +16,20 @@ export default function HomePage() {
         <h1>Structural Engineering Calculators</h1>
         <p>Fast, transparent calcs with downloadable PDF reports.</p>
         <div className={styles.heroActions}>
-          <a href="#calculators-list" className={styles.primaryCta}>
+          <button
+            type="button"
+            className={styles.primaryCta}
+            onClick={() => router.push('/calculators')}
+          >
             Browse Calculators
-          </a>
+          </button>
           <Link href="/about" className={styles.secondaryCta}>
             About
           </Link>
         </div>
       </section>
 
-      <CalculatorBrowser
-        calculators={calculators}
-        categories={calculatorCategories}
-        showIntro
-      />
+      <HomeCarousel calculators={calculators} />
 
       <section className={styles.teaser}>
         <h2>PDF Reports (coming with each calculator)</h2>
