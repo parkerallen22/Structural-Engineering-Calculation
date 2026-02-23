@@ -1,10 +1,10 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { computeSectionProps, getDefaultInput, getRebarOptions } from '@/lib/compositeSectionProps';
 import styles from './page.module.css';
-import { Chevron, VarLabel, fmt, parseDraft, saveRun, toDraft } from './ui';
+import { Chevron, DRAFT_STORAGE_KEY, VarLabel, parseDraft, saveDraft, saveRun } from './ui';
 
 const rebarOptions = getRebarOptions();
 
@@ -16,7 +16,7 @@ function NumberField({ label, value, onChange, unit, note, placeholder }) {
         <input
           type="text"
           inputMode="decimal"
-          value={value}
+          value={value ?? ''}
           placeholder={placeholder}
           onChange={(event) => onChange(event.target.value)}
         />
@@ -55,21 +55,37 @@ function Collapsible({ title, children, defaultOpen = true }) {
   );
 }
 
+function RebarBarRow({ label, barSize, spacing, onBarSizeChange, onSpacingChange }) {
+  return (
+    <div className={styles.inputGrid}>
+      <label className={styles.field}>
+        <span className={styles.fieldLabel}>{label} Size</span>
+        <select value={barSize} onChange={(event) => onBarSizeChange(event.target.value)}>
+          {rebarOptions.map((option) => (
+            <option key={option} value={option}>{option}</option>
+          ))}
+        </select>
+      </label>
+      <NumberField label={`${label} Spacing (in)`} value={spacing} onChange={onSpacingChange} />
+    </div>
+  );
+}
+
 function RebarMatEditor({ mat, onChange, title }) {
   return (
     <Collapsible title={title}>
+      <RebarBarRow
+        label="Bar"
+        barSize={mat.barSize}
+        spacing={mat.spacing}
+        onBarSizeChange={(barSize) => onChange({ ...mat, barSize })}
+        onSpacingChange={(spacing) => onChange({ ...mat, spacing })}
+      />
       <div className={styles.inputGrid}>
-        <label className={styles.field}>
-          <span className={styles.fieldLabel}>Bar Size</span>
-          <select value={mat.barSize} onChange={(event) => onChange({ ...mat, barSize: event.target.value })}>
-            {rebarOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-          </select>
-        </label>
-        <NumberField label={<VarLabel base="s" unit="in" />} value={mat.spacing} onChange={(value) => onChange({ ...mat, spacing: value })} />
         <NumberField
           label={<span><VarLabel base="c" unit="in" /> clear distance</span>}
           value={mat.clearDistance}
-          onChange={(value) => onChange({ ...mat, clearDistance: value })}
+          onChange={(clearDistance) => onChange({ ...mat, clearDistance })}
           note="From concrete face to outside of bar."
         />
       </div>
@@ -77,12 +93,13 @@ function RebarMatEditor({ mat, onChange, title }) {
         <Toggle checked={mat.alternatingBars} onChange={(event) => onChange({ ...mat, alternatingBars: event.target.checked })} label="Alternating Bars" />
       </div>
       {mat.alternatingBars ? (
-        <div className={styles.inputGrid}>
-          <label className={styles.field}><span className={styles.fieldLabel}>Bar A Size</span><select value={mat.barSize} onChange={(event) => onChange({ ...mat, barSize: event.target.value })}>{rebarOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
-          <NumberField label="Bar A Spacing (in)" value={mat.spacing} onChange={(value) => onChange({ ...mat, spacing: value })} />
-          <label className={styles.field}><span className={styles.fieldLabel}>Bar B Size</span><select value={mat.altBarSize} onChange={(event) => onChange({ ...mat, altBarSize: event.target.value })}>{rebarOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
-          <NumberField label="Bar B Spacing (in)" value={mat.altSpacing} onChange={(value) => onChange({ ...mat, altSpacing: value })} />
-        </div>
+        <RebarBarRow
+          label="Second Bar"
+          barSize={mat.altBarSize}
+          spacing={mat.altSpacing}
+          onBarSizeChange={(altBarSize) => onChange({ ...mat, altBarSize })}
+          onSpacingChange={(altSpacing) => onChange({ ...mat, altSpacing })}
+        />
       ) : null}
     </Collapsible>
   );
@@ -124,11 +141,56 @@ function RegionEditor({ title, region, onChange, topEqualsBottomFlange }) {
   );
 }
 
+function buildAutofillRegion() {
+  return {
+    D: '26.9',
+    tw: '0.49',
+    tfTop: '0.745',
+    bfTop: '10',
+    tfBot: '0.745',
+    bfBot: '10',
+    tHaunch: '0.5',
+    tSlab: '8',
+    bEff: '88',
+    rebarTop: {
+      barSize: '#5',
+      spacing: '12',
+      clearDistance: '2.25',
+      alternatingBars: false,
+      altBarSize: '#6',
+      altSpacing: '12',
+    },
+    rebarBottom: {
+      barSize: '#5',
+      spacing: '12',
+      clearDistance: '2.25',
+      alternatingBars: true,
+      altBarSize: '#6',
+      altSpacing: '12',
+    },
+  };
+}
+
 export default function CompositeSectionPropertiesPage() {
   const router = useRouter();
-  const defaults = useMemo(() => toDraft(getDefaultInput()), []);
+  const defaults = useMemo(() => getDefaultInput(), []);
   const [draft, setDraft] = useState(defaults);
   const [errors, setErrors] = useState([]);
+
+  useEffect(() => {
+    const raw = window.sessionStorage.getItem(DRAFT_STORAGE_KEY);
+    if (!raw) return;
+    try {
+      const parsed = JSON.parse(raw);
+      setDraft(parsed);
+    } catch {
+      setDraft(defaults);
+    }
+  }, [defaults]);
+
+  useEffect(() => {
+    saveDraft(draft);
+  }, [draft]);
 
   const onRegionChange = (key, regionData) => setDraft((previous) => ({ ...previous, [key]: regionData }));
 
@@ -145,6 +207,21 @@ export default function CompositeSectionPropertiesPage() {
     }
     saveRun({ input: parsed, result, calculatedAt: new Date().toISOString() });
     router.push('/calculators/composite-section-properties/results');
+  };
+
+  const handleAutoFillTemp = () => {
+    const region = buildAutofillRegion();
+    setErrors([]);
+    setDraft((previous) => ({
+      ...previous,
+      materials: {
+        ...previous.materials,
+        Es: '29000',
+        fc: '4',
+      },
+      negative: region,
+      positive: region,
+    }));
   };
 
   return (
@@ -165,6 +242,9 @@ export default function CompositeSectionPropertiesPage() {
             <Toggle checked={draft.materials.autoEc} onChange={(event) => setDraft((previous) => ({ ...previous, materials: { ...previous.materials, autoEc: event.target.checked } }))} label="Auto-calculate Ec" />
             {!draft.materials.autoEc ? <NumberField label={<VarLabel base="E" sub="c" unit="ksi" />} value={draft.materials.EcManual} onChange={(value) => setDraft((previous) => ({ ...previous, materials: { ...previous.materials, EcManual: value } }))} /> : null}
           </div></article>
+          <div className={styles.tempActions}>
+            <button type="button" className={styles.secondaryButton} onClick={handleAutoFillTemp}>Auto Fill (TEMP)</button>
+          </div>
           <RegionEditor title="Negative Region" region={draft.negative} onChange={(region) => onRegionChange('negative', region)} topEqualsBottomFlange={draft.topEqualsBottomFlange} />
           {!draft.positiveSameAsNegative ? <RegionEditor title="Positive Region" region={draft.positive} onChange={(region) => onRegionChange('positive', region)} topEqualsBottomFlange={draft.topEqualsBottomFlange} /> : null}
           {errors.length ? <section className={styles.errorBox}><h3>Input Validation</h3><ul>{errors.map((error) => <li key={error}>{error}</li>)}</ul></section> : null}

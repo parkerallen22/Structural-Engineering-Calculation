@@ -3,6 +3,7 @@
 import styles from './page.module.css';
 
 export const STORAGE_KEY = 'composite-section-properties:run';
+export const DRAFT_STORAGE_KEY = 'composite-section-properties:draft';
 
 export function fmt(value, digits = 3) {
   if (value == null || Number.isNaN(value)) return '—';
@@ -67,7 +68,9 @@ export function parseDraft(draft) {
     }),
     alternatingBars: Boolean(region.alternatingBars),
     altBarSize: region.altBarSize,
-    altSpacing: requireNumber(region.altSpacing, `${prefix} alternate spacing`, { min: 0 }),
+    altSpacing: region.alternatingBars
+      ? requireNumber(region.altSpacing, `${prefix} alternate spacing`, { min: 0 })
+      : null,
   });
 
   const parseRegion = (region, label) => ({
@@ -91,7 +94,9 @@ export function parseDraft(draft) {
       Es: requireNumber(draft.materials.Es, 'Es', { min: 0 }),
       fc: requireNumber(draft.materials.fc, "f'c", { min: 0 }),
       autoEc: Boolean(draft.materials.autoEc),
-      EcManual: requireNumber(draft.materials.EcManual, 'Ec', { min: 0 }),
+      EcManual: draft.materials.autoEc
+        ? null
+        : requireNumber(draft.materials.EcManual, 'Ec', { min: 0 }),
     },
     negative: parseRegion(draft.negative, 'Negative Region'),
     positive: parseRegion(draft.positive, 'Positive Region'),
@@ -103,6 +108,22 @@ export function parseDraft(draft) {
 export function saveRun(payload) {
   if (typeof window === 'undefined') return;
   window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+}
+
+export function saveDraft(payload) {
+  if (typeof window === 'undefined') return;
+  window.sessionStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(payload));
+}
+
+export function getSavedDraft() {
+  if (typeof window === 'undefined') return null;
+  const raw = window.sessionStorage.getItem(DRAFT_STORAGE_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
 }
 
 export function getSavedRun() {

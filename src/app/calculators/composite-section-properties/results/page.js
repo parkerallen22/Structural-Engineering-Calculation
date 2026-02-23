@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import styles from '../page.module.css';
-import { VarLabel, fmt, getSavedRun } from '../ui';
+import { Chevron, VarLabel, fmt, getSavedRun } from '../ui';
 
 function SummaryTable({ regionResult }) {
   return (
@@ -36,6 +36,81 @@ function InputSummary({ input }) {
   return <div className={styles.inputSummaryGrid}>{rows.map((row, idx) => <p key={idx} className={styles.summaryLine}><span>{row.label}</span><strong>= {row.value}</strong></p>)}</div>;
 }
 
+function DetailTable({ rows }) {
+  return (
+    <table className={styles.calcTable}>
+      <thead>
+        <tr><th>Item / Symbol</th><th>Expression</th><th>Value</th><th>Units</th></tr>
+      </thead>
+      <tbody>
+        {rows.map((row) => (
+          <tr key={row.item}>
+            <td>{row.item}</td>
+            <td>{row.expression}</td>
+            <td>{row.value}</td>
+            <td>{row.units}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function ExpandedCalculations({ regionResult }) {
+  const compositeNRows = regionResult.compositeN.components.map((component) => ({
+    item: component.name,
+    expression: 'Transformed component',
+    value: `A=${fmt(component.area)}, y=${fmt(component.y)}`,
+    units: 'in², in',
+  }));
+
+  const composite3NRows = regionResult.composite3N.components.map((component) => ({
+    item: component.name,
+    expression: 'Transformed component',
+    value: `A=${fmt(component.area)}, y=${fmt(component.y)}`,
+    units: 'in², in',
+  }));
+
+  const summaryRows = [
+    { item: 'ȳ (n)', expression: 'Σ(Aᵢyᵢ)/ΣAᵢ', value: fmt(regionResult.compositeN.yBar), units: 'in' },
+    { item: 'I (n)', expression: 'Σ(Iᵢ + Aᵢdᵢ²)', value: fmt(regionResult.compositeN.i), units: 'in⁴' },
+    { item: 'ȳ (3n)', expression: 'Σ(Aᵢyᵢ)/ΣAᵢ', value: fmt(regionResult.composite3N.yBar), units: 'in' },
+    { item: 'I (3n)', expression: 'Σ(Iᵢ + Aᵢdᵢ²)', value: fmt(regionResult.composite3N.i), units: 'in⁴' },
+    { item: 'NA (cracked)', expression: 'Force equilibrium', value: fmt(regionResult.crackedNegative.neutralAxis), units: 'in' },
+    { item: 'I (cracked)', expression: 'Σ(Iᵢ + Aᵢdᵢ²) about NA', value: fmt(regionResult.crackedNegative.iCracked), units: 'in⁴' },
+  ];
+
+  return (
+    <div className={styles.calcGroups}>
+      <section>
+        <h4>Composite (n) Components</h4>
+        <DetailTable rows={compositeNRows} />
+      </section>
+      <section>
+        <h4>Composite (3n) Components</h4>
+        <DetailTable rows={composite3NRows} />
+      </section>
+      <section>
+        <h4>Calculated Results</h4>
+        <DetailTable rows={summaryRows} />
+      </section>
+    </div>
+  );
+}
+
+function CalculationsAccordion({ regionResult }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <details className={styles.detailAccordion} open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
+      <summary className={styles.calcSummaryToggle}>
+        <span className={styles.calcSummaryTitle}><Chevron open={open} />{open ? 'Hide calculations' : 'Show calculations'}</span>
+      </summary>
+      <ExpandedCalculations regionResult={regionResult} />
+    </details>
+  );
+}
+
 export default function CompositeSectionResultsPage() {
   const router = useRouter();
   const [run, setRun] = useState(null);
@@ -62,23 +137,7 @@ export default function CompositeSectionResultsPage() {
         <article key={regionResult.key} className={styles.sectionCard}>
           <h2>{regionResult.label}</h2>
           <SummaryTable regionResult={regionResult} />
-          <details className={styles.detailAccordion}>
-            <summary>Expanded Calculations</summary>
-            <div className={styles.calcBlock}>
-              <h4>Neutral Axis and Moment of Inertia</h4>
-              <pre>{`ȳ = Σ(Aᵢyᵢ) / ΣAᵢ
-I = Σ(Iᵢ + Aᵢdᵢ²)
-S = I / c`}</pre>
-              <h5>Composite (n) Components</h5>
-              {regionResult.compositeN.components.map((component) => <p key={component.name} className={styles.eqLine}>{component.name}: A = {fmt(component.area)} in², y = {fmt(component.y)} in</p>)}
-              <h5>Composite (3n) Components</h5>
-              {regionResult.composite3N.components.map((component) => <p key={`3-${component.name}`} className={styles.eqLine}>{component.name}: A = {fmt(component.area)} in², y = {fmt(component.y)} in</p>)}
-              <h5>Calculated Results</h5>
-              <p className={styles.eqLine}>Composite (n): ȳ = {fmt(regionResult.compositeN.yBar)} in, I = {fmt(regionResult.compositeN.i)} in⁴</p>
-              <p className={styles.eqLine}>Composite (3n): ȳ = {fmt(regionResult.composite3N.yBar)} in, I = {fmt(regionResult.composite3N.i)} in⁴</p>
-              <p className={styles.eqLine}>Cracked Negative NA = {fmt(regionResult.crackedNegative.neutralAxis)} in, I = {fmt(regionResult.crackedNegative.iCracked)} in⁴</p>
-            </div>
-          </details>
+          <CalculationsAccordion regionResult={regionResult} />
         </article>
       ))}
     </div>
