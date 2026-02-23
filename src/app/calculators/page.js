@@ -1,5 +1,6 @@
-import CalculatorBrowser from '@/components/CalculatorBrowser';
-import { calculatorCategories, calculators } from '@/lib/calculators';
+import CalculatorLibraryList from '@/components/CalculatorLibraryList';
+import { calculators } from '@/lib/calculators';
+import styles from './page.module.css';
 
 export const metadata = {
   title: 'Calculators | Structural Engineering Calculators',
@@ -7,10 +8,10 @@ export const metadata = {
 
 export default function CalculatorsPage() {
   return (
-    <>
-      <h1>Calculators</h1>
-      <p>Browse every available structural engineering calculator in the library.</p>
-      <CalculatorBrowser calculators={calculators} categories={calculatorCategories} />
-    </>
+    <section className={styles.wrapper}>
+      <h1>Calculators Library</h1>
+      <p>Browse every available structural engineering calculator in one compact list.</p>
+      <CalculatorLibraryList calculators={calculators} />
+    </section>
   );
 }

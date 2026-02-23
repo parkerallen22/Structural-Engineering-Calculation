@@ -1,0 +1,86 @@
+.navGroup {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.searchWrapper {
+  position: relative;
+}
+
+.searchIconButton {
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  color: #111827;
+  border-radius: 999px;
+  width: 2.1rem;
+  height: 2.1rem;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+}
+
+.searchPopover {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.6rem);
+  width: min(28rem, 86vw);
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.16);
+  padding: 0.8rem;
+  z-index: 30;
+}
+
+.searchForm {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.searchInput {
+  width: 100%;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  padding: 0.62rem 0.75rem;
+  font-size: 0.95rem;
+}
+
+.closeButton {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fff;
+  padding: 0.5rem 0.6rem;
+  cursor: pointer;
+}
+
+.results {
+  margin-top: 0.75rem;
+  border-top: 1px solid #f1f5f9;
+  padding-top: 0.55rem;
+  display: grid;
+}
+
+.resultLink {
+  text-decoration: none;
+  color: #1f2937;
+  border-radius: 10px;
+  padding: 0.45rem 0.55rem;
+}
+
+.resultLink:hover,
+.resultLink:focus-visible {
+  background: #f8fafc;
+}
+
+.emptyText {
+  margin: 0.4rem 0;
+  color: #6b7280;
+  font-size: 0.92rem;
+}
+
+@media (max-width: 760px) {
+  .navGroup {
+    margin-left: auto;
+  }
+}

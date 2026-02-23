@@ -81,3 +81,19 @@ export const calculators = [
     keywords: ['tributary', 'load', 'area load', 'line load', 'framing'],
   },
 ];
+
+export function searchCalculators(allCalculators, query) {
+  const normalizedQuery = query.trim().toLowerCase();
+
+  if (!normalizedQuery) {
+    return allCalculators;
+  }
+
+  return allCalculators.filter((calculator) => {
+    const searchableText = [calculator.name, calculator.description, ...calculator.keywords]
+      .join(' ')
+      .toLowerCase();
+
+    return searchableText.includes(normalizedQuery);
+  });
+}

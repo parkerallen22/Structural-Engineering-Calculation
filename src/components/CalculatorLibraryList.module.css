@@ -1,0 +1,53 @@
+.wrapper {
+  border: 1px solid #e5e7eb;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.row {
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.72rem 1rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.row:hover,
+.row:focus-visible {
+  background: #f8fafc;
+}
+
+.titleCell h2 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.titleCell p {
+  margin: 0.2rem 0 0;
+  color: #6b7280;
+  font-size: 0.85rem;
+  max-width: 76ch;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.openButton {
+  flex-shrink: 0;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  background: #fff;
+  padding: 0.35rem 0.8rem;
+  font-weight: 600;
+  color: #1f2937;
+}
