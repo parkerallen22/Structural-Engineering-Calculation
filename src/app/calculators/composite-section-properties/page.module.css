@@ -137,3 +137,71 @@
 
 .printSectionBlock { display: grid; gap: 0.55rem; margin-top: 0.8rem; }
 .printSectionBlock h3 { margin: 0; }
+
+
+.expandedBlock {
+  border: 1px solid #1f2937;
+  padding: 0.7rem;
+  background: #fff;
+}
+
+.expandedBlock h4 {
+  margin: 0 0 0.45rem;
+  text-align: center;
+}
+
+.expandedTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+
+.expandedTable th,
+.expandedTable td {
+  border: 1px solid #111827;
+  padding: 0.35rem 0.45rem;
+  text-align: right;
+}
+
+.expandedTable th:first-child,
+.expandedTable td:first-child {
+  text-align: left;
+}
+
+.expandedTable thead th {
+  background: #f8fafc;
+}
+
+.expandedTotalRow td {
+  font-weight: 700;
+  background: #f8fafc;
+}
+
+.expandedBoxes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.7rem;
+  margin-top: 0.65rem;
+}
+
+.expandedMiniTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+
+.expandedMiniTable th,
+.expandedMiniTable td {
+  border: 1px solid #111827;
+  padding: 0.35rem 0.45rem;
+}
+
+.expandedMiniTable th {
+  text-align: left;
+  background: #f8fafc;
+}
+
+.expandedMiniTable td:nth-child(2),
+.expandedMiniTable td:nth-child(3) {
+  text-align: right;
+}

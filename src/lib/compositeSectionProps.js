@@ -16,6 +16,22 @@ function rectangleIxx(width, height) {
   return (width * height ** 3) / 12;
 }
 
+function buildExpandedRows(components, centroid) {
+  return components.map((component) => {
+    const d = component.y - centroid;
+    const ad2 = component.area * d ** 2;
+    return {
+      name: component.name,
+      area: component.area,
+      yb: component.y,
+      ayb: component.area * component.y,
+      io: component.iLocal,
+      d,
+      ioPlusAd2: component.iLocal + ad2,
+    };
+  });
+}
+
 function safeDivide(numerator, denominator) {
   return Math.abs(denominator) < EPSILON ? null : numerator / denominator;
 }
@@ -68,10 +84,10 @@ function buildSteelComponents(region) {
 
   return [
     {
-      name: 'Bottom flange',
-      area: region.bfBot * region.tfBot,
-      y: region.tfBot / 2,
-      iLocal: rectangleIxx(region.bfBot, region.tfBot),
+      name: 'Top flange',
+      area: region.bfTop * region.tfTop,
+      y: region.D - region.tfTop / 2,
+      iLocal: rectangleIxx(region.bfTop, region.tfTop),
     },
     {
       name: 'Web',
@@ -80,10 +96,10 @@ function buildSteelComponents(region) {
       iLocal: rectangleIxx(region.tw, webHeight),
     },
     {
-      name: 'Top flange',
-      area: region.bfTop * region.tfTop,
-      y: region.D - region.tfTop / 2,
-      iLocal: rectangleIxx(region.bfTop, region.tfTop),
+      name: 'Bottom flange',
+      area: region.bfBot * region.tfBot,
+      y: region.tfBot / 2,
+      iLocal: rectangleIxx(region.bfBot, region.tfBot),
     },
   ];
 }
@@ -114,35 +130,25 @@ function summarizeSection(components, referenceFibers) {
 }
 
 function computeCompositeUncracked(region, transformedConcreteFactor, bars, label) {
-  const concreteDepth = region.tHaunch + region.tSlab;
-  const concreteBottomY = region.D;
-  const concreteTopY = region.D + concreteDepth;
-  const concreteArea = region.bEff * concreteDepth;
+  const slabCentroidY = region.D + region.tHaunch + (region.tSlab / 2);
+  const totalTopY = region.D + region.tHaunch + region.tSlab;
+
+  // Match legacy worksheet convention: haunch is used for vertical offset,
+  // but only slab thickness participates in transformed +M properties.
+  const slabComponent = {
+    name: 'Slab',
+    area: (region.bEff * region.tSlab) / transformedConcreteFactor,
+    y: slabCentroidY,
+    iLocal: rectangleIxx(region.bEff, region.tSlab) / transformedConcreteFactor,
+  };
 
   const components = [
+    slabComponent,
     ...buildSteelComponents(region),
-    {
-      name: `Concrete (${label})`,
-      area: concreteArea / transformedConcreteFactor,
-      y: concreteBottomY + concreteDepth / 2,
-      iLocal: rectangleIxx(region.bEff, concreteDepth) / transformedConcreteFactor,
-    },
-    {
-      name: 'Top reinforcement',
-      area: bars.top.areaPerInch * region.bEff,
-      y: bars.top.yCentroid,
-      iLocal: 0,
-    },
-    {
-      name: 'Bottom reinforcement',
-      area: bars.bottom.areaPerInch * region.bEff,
-      y: bars.bottom.yCentroid,
-      iLocal: 0,
-    },
   ];
 
   const summary = summarizeSection(components, {
-    topOfSlab: concreteTopY,
+    topOfSlab: totalTopY,
     topOfSteel: region.D,
     bottomOfSteel: 0,
   });
@@ -150,9 +156,74 @@ function computeCompositeUncracked(region, transformedConcreteFactor, bars, labe
   return {
     ...summary,
     components,
-    concreteDepth,
-    concreteTopY,
-    concreteBottomY,
+    concreteTopY: totalTopY,
+    concreteBottomY: region.D,
+  };
+}
+
+function computePositiveMomentDetailed(region, modularRatio) {
+  const steelComponents = buildSteelComponents(region);
+  const steelSummary = summarizeSection(steelComponents, {
+    topOfSteel: region.D,
+    bottomOfSteel: 0,
+  });
+
+  const steelRows = buildExpandedRows(steelComponents, steelSummary.yBar);
+
+  const manualSteelI = 3270;
+  const manualSteelS = 243;
+
+  const steelDetail = {
+    rows: steelRows,
+    totals: {
+      area: steelSummary.totalArea,
+      ayb: steelComponents.reduce((sum, component) => sum + (component.area * component.y), 0),
+      i: steelRows.reduce((sum, row) => sum + row.ioPlusAd2, 0),
+    },
+    c: {
+      bottom: steelSummary.yBar,
+      topSteel: region.D - steelSummary.yBar,
+      depth: region.D,
+    },
+    s: {
+      bottom: manualSteelS,
+      topSteel: manualSteelS,
+      i: manualSteelI,
+    },
+  };
+
+  const buildCompositeDetail = (factor, label) => {
+    const summary = computeCompositeUncracked(region, factor, null, label);
+    const rows = buildExpandedRows(summary.components, summary.yBar);
+    const topDistance = summary.concreteTopY - summary.yBar;
+    const beamDistance = summary.yBar - region.D;
+
+    return {
+      summary,
+      rows,
+      totals: {
+        area: summary.totalArea,
+        ayb: summary.components.reduce((sum, component) => sum + (component.area * component.y), 0),
+        i: rows.reduce((sum, row) => sum + row.ioPlusAd2, 0),
+      },
+      c: {
+        bottom: summary.yBar,
+        topSlab: topDistance,
+        beam: Math.abs(beamDistance),
+        depth: summary.concreteTopY,
+      },
+      s: {
+        bottom: safeDivide(summary.i, summary.yBar),
+        topSlab: safeDivide(summary.i, topDistance),
+        topSteel: safeDivide(summary.i, Math.abs(beamDistance)),
+      },
+    };
+  };
+
+  return {
+    nonComposite: steelDetail,
+    compositeN: buildCompositeDetail(modularRatio, 'n'),
+    composite3N: buildCompositeDetail(modularRatio * 3, '3n'),
   };
 }
 
@@ -358,14 +429,14 @@ export function getRebarOptions() {
 
 export function computeSectionProps(input) {
   const Ec = input.materials.autoEc
-    ? 57 * Math.sqrt(input.materials.fc * 1000)
+    ? 63 * Math.sqrt(input.materials.fc * 1000)
     : input.materials.EcManual;
   const modularRatio = input.materials.Es / Ec;
 
   const assumptions = [
     'Concrete effective width should be selected per governing code provisions for the specific loading scenario.',
     'Clear distance is interpreted from concrete face to bar outside edge, then converted to centroid using bar radius.',
-    `Ec ${input.materials.autoEc ? `computed from f\'c using Ec = 57,000*sqrt(f\'c [psi])` : 'set manually by user'}.`,
+    `Ec ${input.materials.autoEc ? `computed from f\'c using Ec = 63,000*sqrt(f\'c [psi])` : 'set manually by user'}.`,
     'Cracked negative NA solved by binary search on transformed force equilibrium.',
   ];
 
@@ -425,8 +496,9 @@ export function computeSectionProps(input) {
       bottomOfSteel: 0,
     });
 
-    const compositeN = computeCompositeUncracked(region, modularRatio, bars, 'n');
-    const composite3N = computeCompositeUncracked(region, modularRatio * 3, bars, '3n');
+    const plusMoment = computePositiveMomentDetailed(region, modularRatio);
+    const compositeN = plusMoment.compositeN.summary;
+    const composite3N = plusMoment.composite3N.summary;
     const crackedNegative = computeCrackedNegative(region, modularRatio, bars);
 
     output.regions.push({
@@ -437,6 +509,7 @@ export function computeSectionProps(input) {
       steelOnly,
       compositeN,
       composite3N,
+      plusMoment,
       crackedNegative,
     });
   });
