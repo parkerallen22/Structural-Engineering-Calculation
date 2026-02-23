@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import styles from '../page.module.css';
-import { Chevron, VarLabel, fmt, getSavedRun } from '../ui';
+import { Chevron, InputSummary, fmt, getSavedRun } from '../ui';
 
 function SummaryTable({ regionResult }) {
   return (
@@ -18,22 +18,6 @@ function SummaryTable({ regionResult }) {
       </tbody>
     </table>
   );
-}
-
-function InputSummary({ input }) {
-  const rows = [
-    { label: <VarLabel base="D" />, value: `${fmt(input.negative.D)} in` },
-    { label: <VarLabel base="t" sub="w" />, value: `${fmt(input.negative.tw)} in` },
-    { label: <VarLabel base="t" sub="f,top" />, value: `${fmt(input.negative.tfTop)} in` },
-    { label: <VarLabel base="b" sub="f,top" />, value: `${fmt(input.negative.bfTop)} in` },
-    { label: <VarLabel base="t" sub="haunch" />, value: `${fmt(input.negative.tHaunch)} in` },
-    { label: <VarLabel base="t" sub="slab" />, value: `${fmt(input.negative.tSlab)} in` },
-    { label: <VarLabel base="b" sub="eff" />, value: `${fmt(input.negative.bEff)} in` },
-    { label: <VarLabel base="E" sub="s" />, value: `${fmt(input.materials.Es)} ksi` },
-    { label: <VarLabel base="f'c" />, value: `${fmt(input.materials.fc)} ksi` },
-  ];
-
-  return <div className={styles.inputSummaryGrid}>{rows.map((row, idx) => <p key={idx} className={styles.summaryLine}><span>{row.label}</span><strong>= {row.value}</strong></p>)}</div>;
 }
 
 function ExpandedComponentTable({ title, detail, cRows, sRows }) {
