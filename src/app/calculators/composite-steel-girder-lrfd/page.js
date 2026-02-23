@@ -48,6 +48,15 @@ function createDiaphragm() {
   return { id: crypto.randomUUID(), x_ft: null };
 }
 
+function createSectionLocation(sectionId, source = {}) {
+  return {
+    id: source.id ?? crypto.randomUUID(),
+    sectionId,
+    startX_ft: source.startX_ft ?? null,
+    endX_ft: source.endX_ft ?? null,
+  };
+}
+
 function createStudLayoutRows(numberOfSpans, supportLocations, existingRows = []) {
   const rows = [];
 
@@ -56,7 +65,7 @@ function createStudLayoutRows(numberOfSpans, supportLocations, existingRows = []
     const end = supportLocations[i + 1]?.x_global_ft ?? null;
     rows.push({
       id: existingRows[rows.length]?.id ?? crypto.randomUUID(),
-      name: `span${i + 1}`,
+      name: `Span ${i + 1}`,
       startX_ft: existingRows[rows.length]?.startX_ft ?? start,
       endX_ft: existingRows[rows.length]?.endX_ft ?? end,
       spacing_in: existingRows[rows.length]?.spacing_in ?? null,
@@ -69,7 +78,7 @@ function createStudLayoutRows(numberOfSpans, supportLocations, existingRows = []
       const pierX = supportLocations[i + 1]?.x_global_ft ?? null;
       rows.push({
         id: existingRows[rows.length]?.id ?? crypto.randomUUID(),
-        name: `p${i + 1}`,
+        name: `Pier ${i + 1}`,
         startX_ft: existingRows[rows.length]?.startX_ft ?? pierX,
         endX_ft: existingRows[rows.length]?.endX_ft ?? pierX,
         spacing_in: existingRows[rows.length]?.spacing_in ?? null,
@@ -120,6 +129,7 @@ function createInitialProject() {
         { id: crypto.randomUUID(), locationId: 'span-1', labelId: null },
         { id: crypto.randomUUID(), locationId: 'span-2', labelId: null },
       ],
+      sectionLocations: [createSectionLocation(null)],
       spanStudLayouts: [],
       supportStudLayouts: [],
       studLayout: {
@@ -294,6 +304,21 @@ function withLocationsAndDemands(project) {
   const studRows = createStudLayoutRows(project.geometry.numberOfSpans, supportLocations, sourceRows);
   const constantsFromLegacy = sourceRows[0] || {};
 
+  const sectionLabels =
+    project.schedules?.sectionLabels?.length
+      ? (project.schedules.sectionConstant ? [project.schedules.sectionLabels[0]] : project.schedules.sectionLabels)
+      : [createSectionLabel('SEC-A')];
+
+  const existingSectionLocations = project.schedules?.sectionLocations || [];
+  const sectionLocations = sectionLabels.map((section, index) => {
+    const bySectionId = existingSectionLocations.find((row) => row.sectionId === section.id);
+    const byIndex = existingSectionLocations[index];
+    const source = bySectionId || byIndex || {};
+    const totalLength = spanLengths.reduce((sum, value) => sum + toNumber(value), 0);
+    const defaultRange = sectionLabels.length === 1 ? { startX_ft: 0, endX_ft: totalLength || null } : {};
+    return createSectionLocation(section.id, { ...defaultRange, ...source });
+  });
+
   return {
     ...project,
     derived: { locations },
@@ -311,16 +336,12 @@ function withLocationsAndDemands(project) {
         rows: studRows,
       },
       sectionAssignments,
-      sectionLabels:
-        project.schedules?.sectionLabels?.length
-          ? (project.schedules.sectionConstant ? [project.schedules.sectionLabels[0]] : project.schedules.sectionLabels)
-          : [createSectionLabel('SEC-A')],
+      sectionLabels,
+      sectionLocations,
       diaphragmLocations: ((project.schedules?.diaphragmLocations || []).length
         ? project.schedules?.diaphragmLocations
         : [createDiaphragm()]
-      )
-        .slice()
-        .sort((a, b) => toNumber(a.x_ft, 1e9) - toNumber(b.x_ft, 1e9)),
+      ),
     },
     demandByLocation: nextDemand,
     comboOverridesByLocation: nextOverrides,
@@ -863,6 +884,9 @@ export default function CompositeSteelGirderLrfdPage() {
                       ...current.schedules,
                       sectionConstant: event.target.checked,
                       sectionLabels: event.target.checked ? [current.schedules.sectionLabels[0] || createSectionLabel('SEC-A')] : current.schedules.sectionLabels,
+                      sectionLocations: event.target.checked
+                        ? [current.schedules.sectionLocations?.[0] || createSectionLocation(current.schedules.sectionLabels?.[0]?.id || null)]
+                        : current.schedules.sectionLocations,
                     },
                   }))
                 }
@@ -898,6 +922,7 @@ export default function CompositeSteelGirderLrfdPage() {
                             schedules: {
                               ...current.schedules,
                               sectionLabels: current.schedules.sectionLabels.filter((entry) => entry.id !== section.id),
+                              sectionLocations: (current.schedules.sectionLocations || []).filter((entry) => entry.sectionId !== section.id),
                             },
                           }))
                         }
@@ -910,27 +935,77 @@ export default function CompositeSteelGirderLrfdPage() {
               ))}
             </div>
             {!project.schedules.sectionConstant && (
-              <button type="button" className={styles.secondaryButton} onClick={() => updateProject((current) => ({ ...current, schedules: { ...current.schedules, sectionLabels: [...current.schedules.sectionLabels, createSectionLabel(`SEC-${current.schedules.sectionLabels.length + 1}`)] } }))}>Add section</button>
+              <button
+                type="button"
+                className={styles.secondaryButton}
+                onClick={() =>
+                  updateProject((current) => {
+                    const nextSection = createSectionLabel(`SEC-${current.schedules.sectionLabels.length + 1}`);
+                    return {
+                      ...current,
+                      schedules: {
+                        ...current.schedules,
+                        sectionLabels: [...current.schedules.sectionLabels, nextSection],
+                        sectionLocations: [...(current.schedules.sectionLocations || []), createSectionLocation(nextSection.id)],
+                      },
+                    };
+                  })
+                }
+              >
+                Add section
+              </button>
             )}
 
             {!project.schedules.sectionConstant && (
               <div>
-                <h4>Assign section label by span location</h4>
+                <h4>Locate Sections</h4>
                 <div className={styles.tableWrap}>
                   <table className={styles.table}>
-                    <thead><tr><th>Location</th><th>Section label</th></tr></thead>
+                    <thead><tr><th>Section Name</th><th>Start Location</th><th>End Location</th></tr></thead>
                     <tbody>
-                      {project.schedules.sectionAssignments.map((assignment) => (
-                        <tr key={assignment.id}>
-                          <td>{project.derived.locations.find((entry) => entry.id === assignment.locationId)?.name || assignment.locationId}</td>
+                      {(project.schedules.sectionLocations || []).map((locationRow) => {
+                        const section = project.schedules.sectionLabels.find((entry) => entry.id === locationRow.sectionId);
+                        const start = toNumber(locationRow.startX_ft, NaN);
+                        const end = toNumber(locationRow.endX_ft, NaN);
+                        const hasRangeError = Number.isFinite(start) && Number.isFinite(end) && start >= end;
+                        return (
+                        <tr key={locationRow.id}>
+                          <td>{section?.name || 'Untitled section'}</td>
                           <td>
-                            <select value={assignment.labelId || ''} onChange={(event) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, sectionAssignments: current.schedules.sectionAssignments.map((entry) => entry.id === assignment.id ? { ...entry, labelId: event.target.value || null } : entry) } }))}>
-                              <option value="">Select section</option>
-                              {project.schedules.sectionLabels.map((label) => <option key={label.id} value={label.id}>{label.name || 'Untitled section'}</option>)}
-                            </select>
+                            <NumericInput
+                              value={locationRow.startX_ft}
+                              onCommit={(value) =>
+                                updateProject((current) => ({
+                                  ...current,
+                                  schedules: {
+                                    ...current.schedules,
+                                    sectionLocations: (current.schedules.sectionLocations || []).map((entry) =>
+                                      entry.id === locationRow.id ? { ...entry, startX_ft: value } : entry,
+                                    ),
+                                  },
+                                }))
+                              }
+                            />
+                          </td>
+                          <td>
+                            <NumericInput
+                              value={locationRow.endX_ft}
+                              onCommit={(value) =>
+                                updateProject((current) => ({
+                                  ...current,
+                                  schedules: {
+                                    ...current.schedules,
+                                    sectionLocations: (current.schedules.sectionLocations || []).map((entry) =>
+                                      entry.id === locationRow.id ? { ...entry, endX_ft: value } : entry,
+                                    ),
+                                  },
+                                }))
+                              }
+                            />
+                            {hasRangeError && <div className={styles.muted}>Start location should be less than end location.</div>}
                           </td>
                         </tr>
-                      ))}
+                      )})}
                     </tbody>
                   </table>
                 </div>
@@ -963,12 +1038,12 @@ export default function CompositeSteelGirderLrfdPage() {
             {(project.schedules.studLayout?.simpleLayout ?? true) && (
               <div className={styles.grid3}>
                 <label className={styles.field}># of studs per row<NumericInput value={project.schedules.studLayout?.constants?.studsPerRow} onCommit={(value) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, studLayout: { ...current.schedules.studLayout, constants: { ...current.schedules.studLayout.constants, studsPerRow: value } } } }))} /></label>
-                <label className={styles.field}>Stud diameter<NumericInput value={project.schedules.studLayout?.constants?.diameter_in} onCommit={(value) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, studLayout: { ...current.schedules.studLayout, constants: { ...current.schedules.studLayout.constants, diameter_in: value } } } }))} /></label>
-                <label className={styles.field}>Fy of stud<NumericInput value={project.schedules.studLayout?.constants?.Fy_ksi} onCommit={(value) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, studLayout: { ...current.schedules.studLayout, constants: { ...current.schedules.studLayout.constants, Fy_ksi: value } } } }))} /></label>
+                <label className={styles.field}>Stud Diameter (in)<NumericInput value={project.schedules.studLayout?.constants?.diameter_in} onCommit={(value) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, studLayout: { ...current.schedules.studLayout, constants: { ...current.schedules.studLayout.constants, diameter_in: value } } } }))} /></label>
+                <label className={styles.field}>F<sub>y</sub> (ksi)<NumericInput value={project.schedules.studLayout?.constants?.Fy_ksi} onCommit={(value) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, studLayout: { ...current.schedules.studLayout, constants: { ...current.schedules.studLayout.constants, Fy_ksi: value } } } }))} /></label>
               </div>
             )}
 
-            <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>Name</th><th>Start Location</th><th>End Location</th><th>Spacing</th>{!(project.schedules.studLayout?.simpleLayout ?? true) && <><th># of studs per row</th><th>Stud diameter</th><th>Fy of stud</th></>}</tr></thead><tbody>
+            <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>Name</th><th>Start Location</th><th>End Location</th><th>Spacing</th>{!(project.schedules.studLayout?.simpleLayout ?? true) && <><th># of studs per row</th><th>Stud Diameter (in)</th><th>F<sub>y</sub> (ksi)</th></>}</tr></thead><tbody>
               {(project.schedules.studLayout?.rows || []).map((row, idx) => (
                 <tr key={row.id}><td>{row.name}</td>
                   <td><NumericInput value={row.startX_ft} onCommit={(value)=>updateProject((current)=>({ ...current, schedules:{...current.schedules, studLayout:{...current.schedules.studLayout, rows: current.schedules.studLayout.rows.map((entry, i)=> i===idx ? {...entry,startX_ft: value}:entry)}}}))} /></td>
