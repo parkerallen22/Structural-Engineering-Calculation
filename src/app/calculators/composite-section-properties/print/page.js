@@ -5,40 +5,21 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import styles from '../page.module.css';
 import { InputSummary, fmt, getSavedRun } from '../ui';
-
-function CalcRows({ region }) {
-  const componentRows = (components) => components.map((component) => (
-    <tr key={component.name}>
-      <td>{component.name}</td><td>Transformed component</td><td>{`A=${fmt(component.area)}, y=${fmt(component.y)}`}</td><td>in², in</td>
-    </tr>
-  ));
-
-  return (
-    <>
-      <h3>Composite (n) Components</h3>
-      <table className={styles.calcTable}><thead><tr><th>Item / Symbol</th><th>Expression</th><th>Value</th><th>Units</th></tr></thead><tbody>{componentRows(region.compositeN.components)}</tbody></table>
-      <h3>Composite (3n) Components</h3>
-      <table className={styles.calcTable}><thead><tr><th>Item / Symbol</th><th>Expression</th><th>Value</th><th>Units</th></tr></thead><tbody>{componentRows(region.composite3N.components)}</tbody></table>
-      <h3>Calculated Results</h3>
-      <table className={styles.calcTable}>
-        <thead><tr><th>Item / Symbol</th><th>Expression</th><th>Value</th><th>Units</th></tr></thead>
-        <tbody>
-          <tr><td>ȳ (n)</td><td>Σ(Aᵢyᵢ)/ΣAᵢ</td><td>{fmt(region.compositeN.yBar)}</td><td>in</td></tr>
-          <tr><td>I (n)</td><td>Σ(Iᵢ + Aᵢdᵢ²)</td><td>{fmt(region.compositeN.i)}</td><td>in⁴</td></tr>
-          <tr><td>ȳ (3n)</td><td>Σ(Aᵢyᵢ)/ΣAᵢ</td><td>{fmt(region.composite3N.yBar)}</td><td>in</td></tr>
-          <tr><td>I (3n)</td><td>Σ(Iᵢ + Aᵢdᵢ²)</td><td>{fmt(region.composite3N.i)}</td><td>in⁴</td></tr>
-          <tr><td>NA (cracked)</td><td>Force equilibrium</td><td>{fmt(region.crackedNegative.neutralAxis)}</td><td>in</td></tr>
-          <tr><td>I (cracked)</td><td>Σ(Iᵢ + Aᵢdᵢ²) about NA</td><td>{fmt(region.crackedNegative.iCracked)}</td><td>in⁴</td></tr>
-        </tbody>
-      </table>
-    </>
-  );
-}
+import { ExpandedCalculations } from '../expanded-calculations';
 
 function SummaryTable({ region }) {
   return (
     <table className={styles.resultTable}>
-      <thead><tr><th>Case</th><th>I (in⁴)</th><th>S top slab (in³)</th><th>S top steel (in³)</th><th>S bottom steel (in³)</th><th>NA from steel bottom (in)</th></tr></thead>
+      <thead>
+        <tr>
+          <th>Case</th>
+          <th>I (in⁴)</th>
+          <th>S<sub>top slab</sub> (in³)</th>
+          <th>S<sub>top steel</sub> (in³)</th>
+          <th>S<sub>bottom steel</sub> (in³)</th>
+          <th>NA from steel bottom (in)</th>
+        </tr>
+      </thead>
       <tbody>
         <tr><td>Non-Composite (Steel Only)</td><td>{fmt(region.steelOnly.i)}</td><td>—</td><td>{fmt(region.steelOnly.sectionModulus.topOfSteel)}</td><td>{fmt(region.steelOnly.sectionModulus.bottomOfSteel)}</td><td>{fmt(region.steelOnly.yBar)}</td></tr>
         <tr><td>Composite (n)</td><td>{fmt(region.compositeN.i)}</td><td>{fmt(region.compositeN.sectionModulus.topOfSlab)}</td><td>{fmt(region.compositeN.sectionModulus.topOfSteel)}</td><td>{fmt(region.compositeN.sectionModulus.bottomOfSteel)}</td><td>{fmt(region.compositeN.yBar)}</td></tr>
@@ -76,24 +57,24 @@ export default function CompositeSectionPrintPage() {
         <header className={styles.paperHeader}><h1>Composite Steel Beam + Concrete Deck Section Properties</h1><p>Step 3 of 3 · Final Calculation Sheet</p><p>Calculated: {stamp}</p></header>
 
         <section>
-          <h2>A) Inputs</h2>
+          <h2>Inputs</h2>
           <div className={styles.printSectionBlock}>
             <InputSummary input={run.input} />
           </div>
         </section>
 
         <section>
-          <h2>B) Calculations (Full)</h2>
+          <h2>Calculations</h2>
           {run.result.regions.map((region) => (
             <div key={region.key} className={styles.printSectionBlock}>
               <h3>{region.label}</h3>
-              <CalcRows region={region} />
+              <ExpandedCalculations regionResult={region} />
             </div>
           ))}
         </section>
 
         <section>
-          <h2>C) Summary Table</h2>
+          <h2>Summary</h2>
           {run.result.regions.map((region) => (
             <div key={`summary-${region.key}`} className={styles.printSectionBlock}>
               <h3>{region.label}</h3>

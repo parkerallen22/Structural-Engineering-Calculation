@@ -91,6 +91,44 @@
 
 .placeholderCard { min-height: 280px; border-style: dashed; color: #64748b; display: grid; place-content: center; text-align: center; background: #fbfdff; }
 
+
+.diagramPanel {
+  padding: 1rem;
+  border-radius: 16px;
+  border: 1px solid #dbe4ef;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  box-shadow: 0 8px 30px rgba(15, 23, 42, 0.08);
+}
+
+.diagramStack {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.diagramCard {
+  border: 1px solid #dbe4ef;
+  border-radius: 12px;
+  background: #fff;
+  padding: 0.75rem;
+}
+
+.diagramCard h4 {
+  margin: 0 0 0.55rem;
+  color: #0f172a;
+}
+
+.sectionSketch {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.dimensionText {
+  font-size: 10.5px;
+  fill: #1f2937;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
 .resultTable { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin-top: 0.75rem; }
 .resultTable th,
 .resultTable td { border: 1px solid #dbe2ea; padding: 0.5rem 0.6rem; }
