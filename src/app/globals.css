@@ -2,13 +2,36 @@
   box-sizing: border-box;
 }
 
+
+:root {
+  --text-color: #111827;
+  --muted-text: #4b5563;
+  --surface-color: #ffffff;
+  --surface-color-alt: #f9fafb;
+  --border-color: #d1d5db;
+  --border-color-soft: #e5e7eb;
+  --input-border: #cbd5e1;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --text-color: #e5e7eb;
+    --muted-text: #9ca3af;
+    --surface-color: #111827;
+    --surface-color-alt: #1f2937;
+    --border-color: #374151;
+    --border-color-soft: #4b5563;
+    --input-border: #4b5563;
+  }
+}
+
 html,
 body {
   padding: 0;
   margin: 0;
   font-family: Inter, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-  color: #111827;
-  background: #ffffff;
+  color: var(--text-color);
+  background: var(--surface-color);
 }
 
 a {
@@ -24,9 +47,9 @@ a {
   position: sticky;
   top: 0;
   z-index: 20;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--border-color);
   backdrop-filter: blur(6px);
-  background: rgba(255, 255, 255, 0.95);
+  background: color-mix(in srgb, var(--surface-color) 95%, transparent);
 }
 
 .navInner {
@@ -53,7 +76,7 @@ a {
 
 .navList a {
   text-decoration: none;
-  color: #374151;
+  color: var(--muted-text);
   font-weight: 500;
 }
 
@@ -62,7 +85,7 @@ a {
 }
 
 .siteFooter {
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid var(--border-color);
   margin-top: 2rem;
 }
 
@@ -72,6 +95,6 @@ a {
   gap: 1rem;
   padding: 1rem 0;
   flex-wrap: wrap;
-  color: #4b5563;
+  color: var(--muted-text);
   font-size: 0.9rem;
 }

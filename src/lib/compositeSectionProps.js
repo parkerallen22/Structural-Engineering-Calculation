@@ -303,7 +303,6 @@ function validateRegion(region) {
     region.bfBot,
     region.tHaunch,
     region.tSlab,
-    region.beamSpacing,
     region.bEff,
   ];
 
@@ -329,8 +328,6 @@ export function getDefaultInput() {
       bfBot: 8,
       tHaunch: 2,
       tSlab: 5,
-      beamSpacing: 120,
-      overrideBEff: false,
       bEff: 120,
       rebarTop: {
         barSize: '#5',
@@ -358,8 +355,6 @@ export function getDefaultInput() {
       bfBot: 8,
       tHaunch: 2,
       tSlab: 5,
-      beamSpacing: 120,
-      overrideBEff: false,
       bEff: 120,
       rebarTop: {
         barSize: '#5',
@@ -392,17 +387,17 @@ export function computeSectionProps(input) {
   const modularRatio = input.materials.Es / Ec;
 
   const assumptions = [
-    'Concrete effective width defaults to beam spacing for this scenario; effective width is code-dependent.',
+    'Effective deck width b_eff is provided directly by the user; selected value should satisfy applicable code provisions.',
     'Clear distance is interpreted from concrete face to bar outside edge, then converted to centroid using bar radius.',
-    `Ec ${input.materials.autoEc ? `computed from f\'c using Ec = 57,000*sqrt(f\'c [psi])` : 'set manually by user'}.`,
+    `Ec ${input.materials.autoEc ? "computed from f'c using E_c = 57,000√(f'c × 1000 psi)" : 'set manually by user'}.`,
     'Cracked negative NA solved by binary search on transformed force equilibrium.',
   ];
 
   const regionsToRun = input.positiveSameAsNegative
-    ? [{ key: 'both', label: 'Both regions', data: input.negative }]
+    ? [{ key: 'both', label: 'Positive And Negative Region', data: input.negative }]
     : [
-      { key: 'negative', label: 'Negative region', data: input.negative },
-      { key: 'positive', label: 'Positive region', data: input.positive },
+      { key: 'negative', label: 'Negative Region', data: input.negative },
+      { key: 'positive', label: 'Positive Region', data: input.positive },
     ];
 
   const output = {
@@ -426,7 +421,7 @@ export function computeSectionProps(input) {
       region.bfBot = region.bfTop;
     }
 
-    region.bEff = region.overrideBEff ? Number(region.bEff) : Number(region.beamSpacing);
+    region.bEff = Number(region.bEff);
 
     if (!validateRegion(region)) {
       output.errors.push(`Invalid inputs in ${regionConfig.label}. All geometric values must be positive.`);
