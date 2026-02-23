@@ -281,6 +281,7 @@ export default function CompositeSectionPropertiesPage() {
   const defaults = useMemo(() => getDefaultInput(), []);
   const [input, setInput] = useState(defaults);
   const [isPdfLoading, setIsPdfLoading] = useState(false);
+  const [showResultsPage, setShowResultsPage] = useState(false);
 
   const result = useMemo(() => computeSectionProps(input), [input]);
 
@@ -290,7 +291,53 @@ export default function CompositeSectionPropertiesPage() {
 
   const resetDefaults = () => {
     setInput(getDefaultInput());
+    setShowResultsPage(false);
   };
+
+  const inputSummary = useMemo(() => {
+    const lines = [
+      `Positive same as Negative = ${input.positiveSameAsNegative ? 'Yes' : 'No'}`,
+      `Top flange = Bottom flange = ${input.topEqualsBottomFlange ? 'Yes' : 'No'}`,
+      `Es = ${fmt(input.materials.Es)} ksi`,
+      `f'c = ${fmt(input.materials.fc)} ksi`,
+      `Ec = ${input.materials.autoEc ? 'Auto' : `${fmt(input.materials.EcManual)} ksi`}`,
+    ];
+
+    const getRegionLines = (region, regionLabel) => {
+      const regionLines = [
+        `${regionLabel}: D = ${fmt(region.D)} in`,
+        `${regionLabel}: tw = ${fmt(region.tw)} in`,
+        `${regionLabel}: tf_top = ${fmt(region.tfTop)} in`,
+        `${regionLabel}: bf_top = ${fmt(region.bfTop)} in`,
+        `${regionLabel}: tf_bot = ${fmt(region.tfBot)} in`,
+        `${regionLabel}: bf_bot = ${fmt(region.bfBot)} in`,
+        `${regionLabel}: t_haunch = ${fmt(region.tHaunch)} in`,
+        `${regionLabel}: t_slab = ${fmt(region.tSlab)} in`,
+        `${regionLabel}: s = ${fmt(region.beamSpacing)} in`,
+        `${regionLabel}: b_eff = ${region.overrideBEff ? `${fmt(region.bEff)} in` : 'Auto (beam spacing)'}`,
+        `${regionLabel} top mat: bar size = ${region.rebarTop.barSize}`,
+        `${regionLabel} top mat: spacing = ${fmt(region.rebarTop.spacing)} in`,
+        `${regionLabel} top mat: clear distance = ${fmt(region.rebarTop.clearDistance)} in`,
+        `${regionLabel} top mat: alternating bars = ${region.rebarTop.alternatingBars ? 'Yes' : 'No'}`,
+        `${regionLabel} top mat: alternate bar size = ${region.rebarTop.altBarSize}`,
+        `${regionLabel} top mat: alternate spacing = ${fmt(region.rebarTop.altSpacing)} in`,
+        `${regionLabel} bottom mat: bar size = ${region.rebarBottom.barSize}`,
+        `${regionLabel} bottom mat: spacing = ${fmt(region.rebarBottom.spacing)} in`,
+        `${regionLabel} bottom mat: clear distance = ${fmt(region.rebarBottom.clearDistance)} in`,
+        `${regionLabel} bottom mat: alternating bars = ${region.rebarBottom.alternatingBars ? 'Yes' : 'No'}`,
+        `${regionLabel} bottom mat: alternate bar size = ${region.rebarBottom.altBarSize}`,
+        `${regionLabel} bottom mat: alternate spacing = ${fmt(region.rebarBottom.altSpacing)} in`,
+      ];
+
+      return regionLines;
+    };
+
+    return [
+      ...lines,
+      ...getRegionLines(input.negative, 'Negative region'),
+      ...(input.positiveSameAsNegative ? [] : getRegionLines(input.positive, 'Positive region')),
+    ];
+  }, [input]);
 
   const exportPdf = async () => {
     setIsPdfLoading(true);
@@ -327,6 +374,8 @@ export default function CompositeSectionPropertiesPage() {
         </p>
       </header>
 
+      {!showResultsPage ? (
+      <>
       <section className={styles.sectionCard}>
         <h2>Global controls</h2>
         <div className={styles.gridTwo}>
@@ -424,8 +473,8 @@ export default function CompositeSectionPropertiesPage() {
           <button type="button" onClick={resetDefaults}>
             Reset to defaults
           </button>
-          <button type="button" onClick={exportPdf} disabled={isPdfLoading || result.errors.length > 0}>
-            {isPdfLoading ? 'Generating PDF...' : 'Export PDF'}
+          <button type="button" onClick={() => setShowResultsPage(true)} disabled={result.errors.length > 0}>
+            Calculate
           </button>
         </div>
       </section>
@@ -466,6 +515,35 @@ export default function CompositeSectionPropertiesPage() {
         </section>
       ) : null}
 
+      </>
+      ) : (
+      <>
+      <section className={styles.sectionCard}>
+        <h2>Input summary</h2>
+        <ul className={styles.summaryList}>
+          {inputSummary.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      </section>
+
+      <section className={styles.sectionCard}>
+        <h2>Assumptions</h2>
+        <ul>
+          {result.assumptions.map((assumption) => (
+            <li key={assumption}>{assumption}</li>
+          ))}
+        </ul>
+      </section>
+
+      <section className={styles.actionRow}>
+        <button type="button" onClick={() => setShowResultsPage(false)}>
+          Back to inputs
+        </button>
+        <button type="button" onClick={exportPdf} disabled={isPdfLoading || result.errors.length > 0}>
+          {isPdfLoading ? 'Generating PDF...' : 'Export PDF'}
+        </button>
+      </section>
       {result.regions.map((regionResult) => (
         <section key={regionResult.key} className={styles.sectionCard}>
           <h2>{regionResult.label} results</h2>
@@ -538,6 +616,8 @@ export default function CompositeSectionPropertiesPage() {
           </details>
         </section>
       ))}
+      </>
+      )}
     </div>
   );
 }
