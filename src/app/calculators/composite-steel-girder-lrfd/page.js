@@ -44,6 +44,45 @@ function createSectionLabel(name = '') {
   };
 }
 
+function createDiaphragm() {
+  return { id: crypto.randomUUID(), x_ft: null };
+}
+
+function createStudLayoutRows(numberOfSpans, supportLocations, existingRows = []) {
+  const rows = [];
+
+  for (let i = 0; i < numberOfSpans; i += 1) {
+    const start = supportLocations[i]?.x_global_ft ?? null;
+    const end = supportLocations[i + 1]?.x_global_ft ?? null;
+    rows.push({
+      id: existingRows[rows.length]?.id ?? crypto.randomUUID(),
+      name: `span${i + 1}`,
+      startX_ft: existingRows[rows.length]?.startX_ft ?? start,
+      endX_ft: existingRows[rows.length]?.endX_ft ?? end,
+      spacing_in: existingRows[rows.length]?.spacing_in ?? null,
+      studsPerRow: existingRows[rows.length]?.studsPerRow ?? null,
+      diameter_in: existingRows[rows.length]?.diameter_in ?? null,
+      Fy_ksi: existingRows[rows.length]?.Fy_ksi ?? null,
+    });
+
+    if (i < numberOfSpans - 1) {
+      const pierX = supportLocations[i + 1]?.x_global_ft ?? null;
+      rows.push({
+        id: existingRows[rows.length]?.id ?? crypto.randomUUID(),
+        name: `p${i + 1}`,
+        startX_ft: existingRows[rows.length]?.startX_ft ?? pierX,
+        endX_ft: existingRows[rows.length]?.endX_ft ?? pierX,
+        spacing_in: existingRows[rows.length]?.spacing_in ?? null,
+        studsPerRow: existingRows[rows.length]?.studsPerRow ?? null,
+        diameter_in: existingRows[rows.length]?.diameter_in ?? null,
+        Fy_ksi: existingRows[rows.length]?.Fy_ksi ?? null,
+      });
+    }
+  }
+
+  return rows;
+}
+
 function createInitialProject() {
   const created = nowIso();
 
@@ -83,7 +122,16 @@ function createInitialProject() {
       ],
       spanStudLayouts: [],
       supportStudLayouts: [],
-      diaphragmLocations: [{ id: crypto.randomUUID(), x_ft: null, note: '' }],
+      studLayout: {
+        simpleLayout: true,
+        constants: {
+          studsPerRow: null,
+          diameter_in: null,
+          Fy_ksi: null,
+        },
+        rows: [],
+      },
+      diaphragmLocations: [createDiaphragm()],
     },
     materials: {
       Fy_ksi: 50,
@@ -229,6 +277,23 @@ function withLocationsAndDemands(project) {
     labelId: project.schedules?.sectionAssignments?.[index]?.labelId ?? null,
   }));
 
+  const existingRows = project.schedules?.studLayout?.rows || [];
+  const defaultRowsFromLegacy = [
+    ...(project.schedules?.spanStudLayouts || []).map((row) => ({
+      ...row,
+      startX_ft: null,
+      endX_ft: null,
+    })),
+    ...(project.schedules?.supportStudLayouts || []).map((row) => ({
+      ...row,
+      startX_ft: null,
+      endX_ft: null,
+    })),
+  ];
+  const sourceRows = existingRows.length ? existingRows : defaultRowsFromLegacy;
+  const studRows = createStudLayoutRows(project.geometry.numberOfSpans, supportLocations, sourceRows);
+  const constantsFromLegacy = sourceRows[0] || {};
+
   return {
     ...project,
     derived: { locations },
@@ -236,9 +301,26 @@ function withLocationsAndDemands(project) {
       ...project.schedules,
       spanStudLayouts,
       supportStudLayouts,
+      studLayout: {
+        simpleLayout: project.schedules?.studLayout?.simpleLayout ?? true,
+        constants: {
+          studsPerRow: project.schedules?.studLayout?.constants?.studsPerRow ?? constantsFromLegacy.studsPerRow ?? null,
+          diameter_in: project.schedules?.studLayout?.constants?.diameter_in ?? constantsFromLegacy.diameter_in ?? null,
+          Fy_ksi: project.schedules?.studLayout?.constants?.Fy_ksi ?? constantsFromLegacy.Fy_ksi ?? null,
+        },
+        rows: studRows,
+      },
       sectionAssignments,
-      sectionLabels: project.schedules?.sectionLabels?.length ? project.schedules.sectionLabels : [createSectionLabel('SEC-A')],
-      diaphragmLocations: (project.schedules?.diaphragmLocations || []).slice().sort((a, b) => toNumber(a.x_ft, 1e9) - toNumber(b.x_ft, 1e9)),
+      sectionLabels:
+        project.schedules?.sectionLabels?.length
+          ? (project.schedules.sectionConstant ? [project.schedules.sectionLabels[0]] : project.schedules.sectionLabels)
+          : [createSectionLabel('SEC-A')],
+      diaphragmLocations: ((project.schedules?.diaphragmLocations || []).length
+        ? project.schedules?.diaphragmLocations
+        : [createDiaphragm()]
+      )
+        .slice()
+        .sort((a, b) => toNumber(a.x_ft, 1e9) - toNumber(b.x_ft, 1e9)),
     },
     demandByLocation: nextDemand,
     comboOverridesByLocation: nextOverrides,
@@ -771,7 +853,20 @@ export default function CompositeSteelGirderLrfdPage() {
           <section className={styles.card}>
             <h3 className={styles.sectionTitle}>Section Schedule</h3>
             <label className={styles.inlineCheckbox}>
-              <input type="checkbox" checked={project.schedules.sectionConstant} onChange={(event) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, sectionConstant: event.target.checked } }))} />
+              <input
+                type="checkbox"
+                checked={project.schedules.sectionConstant}
+                onChange={(event) =>
+                  updateProject((current) => ({
+                    ...current,
+                    schedules: {
+                      ...current.schedules,
+                      sectionConstant: event.target.checked,
+                      sectionLabels: event.target.checked ? [current.schedules.sectionLabels[0] || createSectionLabel('SEC-A')] : current.schedules.sectionLabels,
+                    },
+                  }))
+                }
+              />
               Section constant along girder
             </label>
 
@@ -792,13 +887,31 @@ export default function CompositeSteelGirderLrfdPage() {
                       <NumericInput value={section[key]} onCommit={(value) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, sectionLabels: current.schedules.sectionLabels.map((entry) => entry.id === section.id ? { ...entry, [key]: value } : entry) } }))} />
                     </label>
                   ))}
-                  <div className={styles.actions}>
-                    <button type="button" className={styles.secondaryButton} onClick={() => updateProject((current) => ({ ...current, schedules: { ...current.schedules, sectionLabels: [...current.schedules.sectionLabels, { ...section, id: crypto.randomUUID(), name: `${section.name || 'SEC'} Copy` }] } }))}>Duplicate section</button>
-                  </div>
+                  {(!project.schedules.sectionConstant && project.schedules.sectionLabels.length > 1) && (
+                    <div className={styles.actions}>
+                      <button
+                        type="button"
+                        className={styles.secondaryButton}
+                        onClick={() =>
+                          updateProject((current) => ({
+                            ...current,
+                            schedules: {
+                              ...current.schedules,
+                              sectionLabels: current.schedules.sectionLabels.filter((entry) => entry.id !== section.id),
+                            },
+                          }))
+                        }
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
-            <button type="button" className={styles.secondaryButton} onClick={() => updateProject((current) => ({ ...current, schedules: { ...current.schedules, sectionLabels: [...current.schedules.sectionLabels, createSectionLabel(`SEC-${current.schedules.sectionLabels.length + 1}`)] } }))}>Add section label</button>
+            {!project.schedules.sectionConstant && (
+              <button type="button" className={styles.secondaryButton} onClick={() => updateProject((current) => ({ ...current, schedules: { ...current.schedules, sectionLabels: [...current.schedules.sectionLabels, createSectionLabel(`SEC-${current.schedules.sectionLabels.length + 1}`)] } }))}>Add section</button>
+            )}
 
             {!project.schedules.sectionConstant && (
               <div>
@@ -827,19 +940,47 @@ export default function CompositeSteelGirderLrfdPage() {
 
           <section className={styles.card}>
             <h3 className={styles.sectionTitle}>Stud Layout</h3>
-            <h4>Span stud layouts</h4>
-            <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>Span</th><th>studsPerRow</th><th>numberOfRows</th><th>spacing (in)</th><th>diameter (in)</th><th>Fy (ksi)</th></tr></thead><tbody>
-              {project.schedules.spanStudLayouts.map((row, idx) => (
+            <label className={styles.inlineCheckbox}>
+              <input
+                type="checkbox"
+                checked={project.schedules.studLayout?.simpleLayout ?? true}
+                onChange={(event) =>
+                  updateProject((current) => ({
+                    ...current,
+                    schedules: {
+                      ...current.schedules,
+                      studLayout: {
+                        ...current.schedules.studLayout,
+                        simpleLayout: event.target.checked,
+                      },
+                    },
+                  }))
+                }
+              />
+              Simple layout
+            </label>
+
+            {(project.schedules.studLayout?.simpleLayout ?? true) && (
+              <div className={styles.grid3}>
+                <label className={styles.field}># of studs per row<NumericInput value={project.schedules.studLayout?.constants?.studsPerRow} onCommit={(value) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, studLayout: { ...current.schedules.studLayout, constants: { ...current.schedules.studLayout.constants, studsPerRow: value } } } }))} /></label>
+                <label className={styles.field}>Stud diameter<NumericInput value={project.schedules.studLayout?.constants?.diameter_in} onCommit={(value) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, studLayout: { ...current.schedules.studLayout, constants: { ...current.schedules.studLayout.constants, diameter_in: value } } } }))} /></label>
+                <label className={styles.field}>Fy of stud<NumericInput value={project.schedules.studLayout?.constants?.Fy_ksi} onCommit={(value) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, studLayout: { ...current.schedules.studLayout, constants: { ...current.schedules.studLayout.constants, Fy_ksi: value } } } }))} /></label>
+              </div>
+            )}
+
+            <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>Name</th><th>Start Location</th><th>End Location</th><th>Spacing</th>{!(project.schedules.studLayout?.simpleLayout ?? true) && <><th># of studs per row</th><th>Stud diameter</th><th>Fy of stud</th></>}</tr></thead><tbody>
+              {(project.schedules.studLayout?.rows || []).map((row, idx) => (
                 <tr key={row.id}><td>{row.name}</td>
-                  {['studsPerRow','numberOfRows','spacing_in','diameter_in','Fy_ksi'].map((key)=><td key={`${row.id}-${key}`}><NumericInput value={row[key]} onCommit={(value)=>updateProject((current)=>({ ...current, schedules:{...current.schedules, spanStudLayouts: current.schedules.spanStudLayouts.map((entry, i)=> i===idx ? {...entry,[key]: value}:entry)}}))} /></td>)}
-                </tr>
-              ))}
-            </tbody></table></div>
-            <h4>Support stud layouts</h4>
-            <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>Support</th><th>studsPerRow</th><th>numberOfRows</th><th>spacing (in)</th><th>diameter (in)</th><th>Fy (ksi)</th></tr></thead><tbody>
-              {project.schedules.supportStudLayouts.map((row, idx) => (
-                <tr key={row.id}><td>{row.name}</td>
-                  {['studsPerRow','numberOfRows','spacing_in','diameter_in','Fy_ksi'].map((key)=><td key={`${row.id}-${key}`}><NumericInput value={row[key]} onCommit={(value)=>updateProject((current)=>({ ...current, schedules:{...current.schedules, supportStudLayouts: current.schedules.supportStudLayouts.map((entry, i)=> i===idx ? {...entry,[key]: value}:entry)}}))} /></td>)}
+                  <td><NumericInput value={row.startX_ft} onCommit={(value)=>updateProject((current)=>({ ...current, schedules:{...current.schedules, studLayout:{...current.schedules.studLayout, rows: current.schedules.studLayout.rows.map((entry, i)=> i===idx ? {...entry,startX_ft: value}:entry)}}}))} /></td>
+                  <td><NumericInput value={row.endX_ft} onCommit={(value)=>updateProject((current)=>({ ...current, schedules:{...current.schedules, studLayout:{...current.schedules.studLayout, rows: current.schedules.studLayout.rows.map((entry, i)=> i===idx ? {...entry,endX_ft: value}:entry)}}}))} /></td>
+                  <td><NumericInput value={row.spacing_in} onCommit={(value)=>updateProject((current)=>({ ...current, schedules:{...current.schedules, studLayout:{...current.schedules.studLayout, rows: current.schedules.studLayout.rows.map((entry, i)=> i===idx ? {...entry,spacing_in: value}:entry)}}}))} /></td>
+                  {!(project.schedules.studLayout?.simpleLayout ?? true) && (
+                    <>
+                      <td><NumericInput value={row.studsPerRow} onCommit={(value)=>updateProject((current)=>({ ...current, schedules:{...current.schedules, studLayout:{...current.schedules.studLayout, rows: current.schedules.studLayout.rows.map((entry, i)=> i===idx ? {...entry,studsPerRow: value}:entry)}}}))} /></td>
+                      <td><NumericInput value={row.diameter_in} onCommit={(value)=>updateProject((current)=>({ ...current, schedules:{...current.schedules, studLayout:{...current.schedules.studLayout, rows: current.schedules.studLayout.rows.map((entry, i)=> i===idx ? {...entry,diameter_in: value}:entry)}}}))} /></td>
+                      <td><NumericInput value={row.Fy_ksi} onCommit={(value)=>updateProject((current)=>({ ...current, schedules:{...current.schedules, studLayout:{...current.schedules.studLayout, rows: current.schedules.studLayout.rows.map((entry, i)=> i===idx ? {...entry,Fy_ksi: value}:entry)}}}))} /></td>
+                    </>
+                  )}
                 </tr>
               ))}
             </tbody></table></div>
@@ -851,17 +992,42 @@ export default function CompositeSteelGirderLrfdPage() {
           <section className={styles.card}>
             <h3 className={styles.sectionTitle}>Diaphragm Locations</h3>
             <div className={styles.tableWrap}>
-              <table className={styles.table}><thead><tr><th>X from Abutment A (ft)</th><th>Note</th><th /></tr></thead><tbody>
-                {project.schedules.diaphragmLocations.map((row) => (
+              <table className={styles.table}><thead><tr><th>Name</th><th>distance from abutment x</th><th /></tr></thead><tbody>
+                {project.schedules.diaphragmLocations.map((row, index) => (
                   <tr key={row.id}>
+                    <td>Diaphragm {index + 1}</td>
                     <td><NumericInput value={row.x_ft} onCommit={(value)=>updateProject((current)=>({ ...current, schedules:{...current.schedules, diaphragmLocations: current.schedules.diaphragmLocations.map((entry)=>entry.id===row.id?{...entry,x_ft:value}:entry)}}))} /></td>
-                    <td><input value={row.note || ''} onChange={(event)=>updateProject((current)=>({ ...current, schedules:{...current.schedules, diaphragmLocations: current.schedules.diaphragmLocations.map((entry)=>entry.id===row.id?{...entry,note:event.target.value}:entry)}}))} /></td>
-                    <td><button type="button" className={styles.secondaryButton} onClick={()=>updateProject((current)=>({ ...current, schedules:{...current.schedules, diaphragmLocations: current.schedules.diaphragmLocations.filter((entry)=>entry.id!==row.id)}}))}>Remove</button></td>
+                    <td><button type="button" className={styles.secondaryButton} onClick={()=>updateProject((current)=>({ ...current, schedules:{...current.schedules, diaphragmLocations: current.schedules.diaphragmLocations.length > 1 ? current.schedules.diaphragmLocations.filter((entry)=>entry.id!==row.id) : current.schedules.diaphragmLocations}}))}>Remove</button></td>
                   </tr>
                 ))}
               </tbody></table>
             </div>
-            <button type="button" className={styles.secondaryButton} onClick={()=>updateProject((current)=>({ ...current, schedules:{...current.schedules, diaphragmLocations:[...current.schedules.diaphragmLocations,{id:crypto.randomUUID(),x_ft:null,note:''}]}}))}>Add diaphragm</button>
+            <button type="button" className={styles.secondaryButton} onClick={()=>updateProject((current)=>({ ...current, schedules:{...current.schedules, diaphragmLocations:[...current.schedules.diaphragmLocations,createDiaphragm()]}}))}>Add diaphragm</button>
+            <div className={styles.svgBlock}>
+              <h4>Steel framing plan</h4>
+              <svg viewBox="0 0 900 260" width="100%" height="260" role="img" aria-label="Steel framing plan with girders and diaphragms">
+                <rect x="0" y="0" width="900" height="260" fill="white" />
+                <line x1="70" y1="30" x2="70" y2="230" stroke="#111" strokeWidth="2" />
+                <text x="20" y="24" fontSize="12" fontWeight="700">x=0 (Abutment)</text>
+                {Array.from({ length: Math.max(1, toNumber(project.geometry.numberOfGirders, 5)) }, (_, i) => {
+                  const count = Math.max(1, toNumber(project.geometry.numberOfGirders, 5));
+                  const y = count === 1 ? 130 : 40 + (i * 180) / (count - 1);
+                  return <line key={`plan-girder-${i}`} x1="70" y1={y} x2="860" y2={y} stroke="#1f2937" strokeWidth="2" />;
+                })}
+                {(() => {
+                  const totalLength = project.geometry.spanLengths_ft.reduce((sum, value) => sum + toNumber(value), 0) || 1;
+                  return (project.schedules.diaphragmLocations || []).map((row, idx) => {
+                    const x = 70 + (Math.max(0, toNumber(row.x_ft, 0)) / totalLength) * 790;
+                    return (
+                      <g key={`dia-line-${row.id}`}>
+                        <line x1={x} y1="35" x2={x} y2="225" stroke="#2563eb" strokeWidth="2" strokeDasharray="5 4" />
+                        <text x={x + 4} y="50" fontSize="12" fill="#1d4ed8" fontWeight="700">D{idx + 1}</text>
+                      </g>
+                    );
+                  });
+                })()}
+              </svg>
+            </div>
           </section>
 
           <section className={styles.card}>
@@ -898,7 +1064,7 @@ export default function CompositeSteelGirderLrfdPage() {
             <p className={styles.muted}>Enter M with sign: +M sagging (typ. midspan), −M hogging (typ. supports). Enter −M as negative.</p>
             <h4>Span location points (x′ from left support)</h4>
             <div className={styles.tableWrap}>
-              <table className={styles.table}><thead><tr><th>Span</th><th>Length (ft)</th><th>Moment @ L/2</th><th>x′ (ft)</th></tr></thead><tbody>
+              <table className={styles.table}><thead><tr><th>Span</th><th>Length (ft)</th><th>Controlling Moment @ L/2</th><th>x′ (ft)</th></tr></thead><tbody>
                 {project.geometry.spanPoints.map((point, index) => {
                   const spanLength = toNumber(project.geometry.spanLengths_ft[index], 0);
                   const xPrime = point.momentAtMid ? spanLength / 2 : point.xPrime_ft;
