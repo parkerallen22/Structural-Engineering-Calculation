@@ -121,12 +121,23 @@
   width: 100%;
   height: auto;
   display: block;
+  overflow: visible;
+}
+
+.dimensionLine {
+  stroke: #64748b;
+  stroke-width: 1.2;
+  fill: none;
 }
 
 .dimensionText {
   font-size: 10.5px;
   fill: #1f2937;
   font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.dimensionTextCompact {
+  font-size: 9.6px;
 }
 
 .resultTable { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin-top: 0.75rem; }

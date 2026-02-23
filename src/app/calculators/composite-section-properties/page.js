@@ -161,7 +161,42 @@ function inchesToPx(value, scale, minPx, maxPx) {
   return Math.min(maxPx, Math.max(minPx, raw));
 }
 
-function SectionSketch({ region, title }) {
+function clampInchesToPx(value, scale, minPx, maxPx) {
+  return inchesToPx(value, scale, minPx, maxPx);
+}
+
+function computeBarRadius(barSize) {
+  const parsed = Number(String(barSize ?? '').replace('#', ''));
+  return Math.min(6, Math.max(3, (Number.isFinite(parsed) ? parsed : 5) * 0.52));
+}
+
+function computeBarLayout(widthPx, spacingIn, effectiveWidthIn) {
+  const spacing = Math.max(1, toNumber(spacingIn, 12));
+  const width = Math.max(1, toNumber(effectiveWidthIn, 24));
+  const estimatedCount = Math.floor(width / spacing) + 1;
+  const count = Math.min(10, Math.max(2, estimatedCount));
+  const left = -widthPx / 2;
+  const interval = count > 1 ? widthPx / (count - 1) : 0;
+  return Array.from({ length: count }, (_, index) => left + index * interval);
+}
+
+function Dimension({ id, orientation, x1, y1, x2, y2, extA, extB, label, className, textClassName }) {
+  const midX = (x1 + x2) / 2;
+  const midY = (y1 + y2) / 2;
+  const labelTransform = orientation === 'vertical' ? `rotate(-90 ${midX} ${midY})` : undefined;
+  const textDy = orientation === 'vertical' ? -3 : -5;
+
+  return (
+    <g>
+      {extA ? <line x1={extA.x1} y1={extA.y1} x2={extA.x2} y2={extA.y2} className={className} /> : null}
+      {extB ? <line x1={extB.x1} y1={extB.y1} x2={extB.x2} y2={extB.y2} className={className} /> : null}
+      <line x1={x1} y1={y1} x2={x2} y2={y2} className={className} markerStart={`url(#${id})`} markerEnd={`url(#${id})`} />
+      <text x={midX} y={midY + textDy} transform={labelTransform} textAnchor="middle" className={textClassName}>{label}</text>
+    </g>
+  );
+}
+
+function SectionSketch({ region, title, compact = false }) {
   const D = toNumber(region.D, 24);
   const tw = toNumber(region.tw, 0.5);
   const tfTop = toNumber(region.tfTop, 0.75);
@@ -172,34 +207,41 @@ function SectionSketch({ region, title }) {
   const tSlab = toNumber(region.tSlab, 8);
   const bEff = toNumber(region.bEff, Math.max(bfTop, bfBot));
 
-  const viewWidth = 460;
-  const viewHeight = 330;
-  const centerX = 170;
-  const baseY = 280;
-  const availableHeight = 235;
+  const viewWidth = 700;
+  const viewHeight = compact ? 430 : 460;
+  const centerX = 250;
+  const baseY = compact ? 350 : 370;
+  const availableHeight = compact ? 270 : 300;
 
   const verticalScale = availableHeight / Math.max(D + tHaunch + tSlab, 1);
-  const horizontalScale = 190 / Math.max(bEff, bfTop, bfBot, 1);
+  const horizontalScale = 280 / Math.max(bEff, bfTop, bfBot, 1);
 
-  const slabH = inchesToPx(tSlab, verticalScale, 18, 95);
-  const haunchH = inchesToPx(tHaunch, verticalScale, 8, 42);
-  const steelH = inchesToPx(D, verticalScale, 65, 170);
+  const slabH = clampInchesToPx(tSlab, verticalScale, 24, compact ? 90 : 110);
+  const haunchH = clampInchesToPx(tHaunch, verticalScale, 8, 40);
+  const steelH = clampInchesToPx(D, verticalScale, 90, compact ? 190 : 210);
 
-  const topFlangeH = inchesToPx(tfTop, verticalScale, 8, 26);
-  const bottomFlangeH = inchesToPx(tfBot, verticalScale, 8, 26);
+  const topFlangeH = clampInchesToPx(tfTop, verticalScale, 10, 28);
+  const bottomFlangeH = clampInchesToPx(tfBot, verticalScale, 10, 28);
   const webH = Math.max(16, steelH - topFlangeH - bottomFlangeH);
 
-  const slabW = inchesToPx(bEff, horizontalScale, 120, 260);
-  const topFlangeW = inchesToPx(bfTop, horizontalScale, 64, 220);
-  const bottomFlangeW = inchesToPx(bfBot, horizontalScale, 64, 220);
-  const webW = inchesToPx(tw, horizontalScale, 7, 30);
+  const slabW = clampInchesToPx(bEff, horizontalScale, 170, 320);
+  const topFlangeW = clampInchesToPx(bfTop, horizontalScale, 70, 250);
+  const bottomFlangeW = clampInchesToPx(bfBot, horizontalScale, 70, 250);
+  const webW = clampInchesToPx(tw, horizontalScale, 10, 40);
 
   const steelTopY = baseY - steelH;
   const haunchY = steelTopY - haunchH;
   const slabY = haunchY - slabH;
 
-  const topBarY = slabY + inchesToPx(region.rebarTop.clearDistance, verticalScale, 6, slabH - 6);
-  const bottomBarY = slabY + slabH - inchesToPx(region.rebarBottom.clearDistance, verticalScale, 6, slabH - 6);
+  const topBarY = slabY + clampInchesToPx(region.rebarTop.clearDistance, verticalScale, 9, slabH * 0.45);
+  const bottomBarY = slabY + slabH - clampInchesToPx(region.rebarBottom.clearDistance, verticalScale, 9, slabH * 0.45);
+  const topBars = computeBarLayout(slabW - 24, region.rebarTop.spacing, bEff);
+  const bottomBars = computeBarLayout(slabW - 24, region.rebarBottom.spacing, bEff);
+  const topBarR = computeBarRadius(region.rebarTop.barSize);
+  const bottomBarR = computeBarRadius(region.rebarBottom.barSize);
+  const noteX = 470;
+  const noteY = compact ? 70 : 76;
+  const dimensionTextClass = compact ? `${styles.dimensionText} ${styles.dimensionTextCompact}` : styles.dimensionText;
 
   const topBarText = region.rebarTop.alternatingBars
     ? `${region.rebarTop.barSize} @ ${fmtSketch(region.rebarTop.spacing)} in, ${region.rebarTop.altBarSize} @ ${fmtSketch(region.rebarTop.altSpacing)} in`
@@ -226,42 +268,38 @@ function SectionSketch({ region, title }) {
         <rect x={centerX - webW / 2} y={steelTopY + topFlangeH} width={webW} height={webH} fill="#cbd5e1" stroke="#334155" />
         <rect x={centerX - bottomFlangeW / 2} y={baseY - bottomFlangeH} width={bottomFlangeW} height={bottomFlangeH} fill="#cbd5e1" stroke="#334155" />
 
-        <circle cx={centerX - 40} cy={topBarY} r="3.5" fill="#1d4ed8" />
-        <circle cx={centerX + 40} cy={topBarY} r="3.5" fill="#1d4ed8" />
-        <circle cx={centerX - 40} cy={bottomBarY} r="3.5" fill="#2563eb" />
-        <circle cx={centerX + 40} cy={bottomBarY} r="3.5" fill="#2563eb" />
+        {topBars.map((offset) => <circle key={`top-${offset}`} cx={centerX + offset} cy={topBarY} r={topBarR} fill="#2563eb" />)}
+        {bottomBars.map((offset) => <circle key={`bot-${offset}`} cx={centerX + offset} cy={bottomBarY} r={bottomBarR} fill="#ea580c" />)}
 
-        <line x1="24" y1={baseY} x2="24" y2={steelTopY} stroke="#64748b" markerStart={`url(#arrow-${title ?? 'single'})`} markerEnd={`url(#arrow-${title ?? 'single'})`} />
-        <text x="8" y={(baseY + steelTopY) / 2} className={styles.dimensionText}>D = {fmtSketch(D)} in</text>
+        <Dimension
+          id={`arrow-${title ?? 'single'}`}
+          orientation="vertical"
+          x1={72}
+          y1={baseY}
+          x2={72}
+          y2={steelTopY}
+          extA={{ x1: centerX - bottomFlangeW / 2 - 4, y1: baseY, x2: 72, y2: baseY }}
+          extB={{ x1: centerX - topFlangeW / 2 - 4, y1: steelTopY, x2: 72, y2: steelTopY }}
+          label={`D = ${fmtSketch(D)} in`}
+          className={styles.dimensionLine}
+          textClassName={dimensionTextClass}
+        />
+        <Dimension id={`arrow-${title ?? 'single'}`} orientation="vertical" x1={104} y1={haunchY} x2={104} y2={steelTopY} extA={{ x1: centerX - topFlangeW / 2 - 4, y1: steelTopY, x2: 104, y2: steelTopY }} extB={{ x1: centerX - topFlangeW / 2 - 4, y1: haunchY, x2: 104, y2: haunchY }} label={`t_haunch = ${fmtSketch(tHaunch)} in`} className={styles.dimensionLine} textClassName={dimensionTextClass} />
+        <Dimension id={`arrow-${title ?? 'single'}`} orientation="vertical" x1={136} y1={slabY} x2={136} y2={haunchY} extA={{ x1: centerX - slabW / 2 - 4, y1: slabY, x2: 136, y2: slabY }} extB={{ x1: centerX - slabW / 2 - 4, y1: haunchY, x2: 136, y2: haunchY }} label={`t_slab = ${fmtSketch(tSlab)} in`} className={styles.dimensionLine} textClassName={dimensionTextClass} />
 
-        <line x1="38" y1={steelTopY} x2="38" y2={haunchY} stroke="#64748b" markerStart={`url(#arrow-${title ?? 'single'})`} markerEnd={`url(#arrow-${title ?? 'single'})`} />
-        <text x="44" y={(steelTopY + haunchY) / 2} className={styles.dimensionText}>tₕₐᵤₙcₕ = {fmtSketch(tHaunch)} in</text>
+        <Dimension id={`arrow-${title ?? 'single'}`} orientation="horizontal" x1={centerX - slabW / 2} y1={slabY - 24} x2={centerX + slabW / 2} y2={slabY - 24} extA={{ x1: centerX - slabW / 2, y1: slabY, x2: centerX - slabW / 2, y2: slabY - 24 }} extB={{ x1: centerX + slabW / 2, y1: slabY, x2: centerX + slabW / 2, y2: slabY - 24 }} label={`b_eff = ${fmtSketch(bEff)} in`} className={styles.dimensionLine} textClassName={dimensionTextClass} />
+        <Dimension id={`arrow-${title ?? 'single'}`} orientation="horizontal" x1={centerX - topFlangeW / 2} y1={baseY + 38} x2={centerX + topFlangeW / 2} y2={baseY + 38} extA={{ x1: centerX - topFlangeW / 2, y1: baseY, x2: centerX - topFlangeW / 2, y2: baseY + 38 }} extB={{ x1: centerX + topFlangeW / 2, y1: baseY, x2: centerX + topFlangeW / 2, y2: baseY + 38 }} label={`b_f,top = ${fmtSketch(bfTop)} in`} className={styles.dimensionLine} textClassName={dimensionTextClass} />
+        <Dimension id={`arrow-${title ?? 'single'}`} orientation="horizontal" x1={centerX - bottomFlangeW / 2} y1={baseY + 64} x2={centerX + bottomFlangeW / 2} y2={baseY + 64} extA={{ x1: centerX - bottomFlangeW / 2, y1: baseY - bottomFlangeH, x2: centerX - bottomFlangeW / 2, y2: baseY + 64 }} extB={{ x1: centerX + bottomFlangeW / 2, y1: baseY - bottomFlangeH, x2: centerX + bottomFlangeW / 2, y2: baseY + 64 }} label={`b_f,bot = ${fmtSketch(bfBot)} in`} className={styles.dimensionLine} textClassName={dimensionTextClass} />
+        <Dimension id={`arrow-${title ?? 'single'}`} orientation="vertical" x1={centerX + topFlangeW / 2 + 28} y1={steelTopY} x2={centerX + topFlangeW / 2 + 28} y2={steelTopY + topFlangeH} extA={{ x1: centerX + topFlangeW / 2, y1: steelTopY, x2: centerX + topFlangeW / 2 + 28, y2: steelTopY }} extB={{ x1: centerX + topFlangeW / 2, y1: steelTopY + topFlangeH, x2: centerX + topFlangeW / 2 + 28, y2: steelTopY + topFlangeH }} label={`t_f,top = ${fmtSketch(tfTop)} in`} className={styles.dimensionLine} textClassName={dimensionTextClass} />
+        <Dimension id={`arrow-${title ?? 'single'}`} orientation="vertical" x1={centerX + bottomFlangeW / 2 + 28} y1={baseY - bottomFlangeH} x2={centerX + bottomFlangeW / 2 + 28} y2={baseY} extA={{ x1: centerX + bottomFlangeW / 2, y1: baseY - bottomFlangeH, x2: centerX + bottomFlangeW / 2 + 28, y2: baseY - bottomFlangeH }} extB={{ x1: centerX + bottomFlangeW / 2, y1: baseY, x2: centerX + bottomFlangeW / 2 + 28, y2: baseY }} label={`t_f,bot = ${fmtSketch(tfBot)} in`} className={styles.dimensionLine} textClassName={dimensionTextClass} />
+        <Dimension id={`arrow-${title ?? 'single'}`} orientation="horizontal" x1={centerX - webW / 2} y1={steelTopY + topFlangeH + webH / 2} x2={centerX + webW / 2} y2={steelTopY + topFlangeH + webH / 2} extA={{ x1: centerX - webW / 2, y1: steelTopY + topFlangeH + webH / 2 - 14, x2: centerX - webW / 2, y2: steelTopY + topFlangeH + webH / 2 }} extB={{ x1: centerX + webW / 2, y1: steelTopY + topFlangeH + webH / 2 - 14, x2: centerX + webW / 2, y2: steelTopY + topFlangeH + webH / 2 }} label={`t_w = ${fmtSketch(tw)} in`} className={styles.dimensionLine} textClassName={dimensionTextClass} />
 
-        <line x1="24" y1={haunchY} x2="24" y2={slabY} stroke="#64748b" markerStart={`url(#arrow-${title ?? 'single'})`} markerEnd={`url(#arrow-${title ?? 'single'})`} />
-        <text x="30" y={(haunchY + slabY) / 2} className={styles.dimensionText}>tₛₗₐᵦ = {fmtSketch(tSlab)} in</text>
-
-        <line x1={centerX - topFlangeW / 2} y1={baseY + 14} x2={centerX + topFlangeW / 2} y2={baseY + 14} stroke="#64748b" markerStart={`url(#arrow-${title ?? 'single'})`} markerEnd={`url(#arrow-${title ?? 'single'})`} />
-        <text x={centerX - 44} y={baseY + 28} className={styles.dimensionText}>b_f,top = {fmtSketch(bfTop)} in</text>
-
-        <line x1={centerX - bottomFlangeW / 2} y1={baseY + 38} x2={centerX + bottomFlangeW / 2} y2={baseY + 38} stroke="#64748b" markerStart={`url(#arrow-${title ?? 'single'})`} markerEnd={`url(#arrow-${title ?? 'single'})`} />
-        <text x={centerX - 56} y={baseY + 54} className={styles.dimensionText}>b_f,bot = {fmtSketch(bfBot)} in</text>
-
-        <line x1={centerX + topFlangeW / 2 + 16} y1={steelTopY} x2={centerX + topFlangeW / 2 + 16} y2={steelTopY + topFlangeH} stroke="#64748b" markerStart={`url(#arrow-${title ?? 'single'})`} markerEnd={`url(#arrow-${title ?? 'single'})`} />
-        <text x={centerX + topFlangeW / 2 + 22} y={steelTopY + 12} className={styles.dimensionText}>t_f,top = {fmtSketch(tfTop)} in</text>
-
-        <line x1={centerX + bottomFlangeW / 2 + 16} y1={baseY - bottomFlangeH} x2={centerX + bottomFlangeW / 2 + 16} y2={baseY} stroke="#64748b" markerStart={`url(#arrow-${title ?? 'single'})`} markerEnd={`url(#arrow-${title ?? 'single'})`} />
-        <text x={centerX + bottomFlangeW / 2 + 22} y={baseY - 4} className={styles.dimensionText}>t_f,bot = {fmtSketch(tfBot)} in</text>
-
-        <line x1={centerX - webW / 2} y1={steelTopY + topFlangeH + webH / 2} x2={centerX + webW / 2} y2={steelTopY + topFlangeH + webH / 2} stroke="#64748b" markerStart={`url(#arrow-${title ?? 'single'})`} markerEnd={`url(#arrow-${title ?? 'single'})`} />
-        <text x={centerX + 10} y={steelTopY + topFlangeH + webH / 2 - 4} className={styles.dimensionText}>t_w = {fmtSketch(tw)} in</text>
-
-        <line x1={centerX + slabW / 2 + 10} y1={topBarY} x2="430" y2="52" stroke="#64748b" />
-        <text x="300" y="48" className={styles.dimensionText}>Top: {topBarText}</text>
-        <text x="300" y="64" className={styles.dimensionText}>Top clear = {fmtSketch(region.rebarTop.clearDistance)} in</text>
-
-        <line x1={centerX + slabW / 2 + 10} y1={bottomBarY} x2="430" y2="94" stroke="#64748b" />
-        <text x="286" y="90" className={styles.dimensionText}>Bottom: {bottomBarText}</text>
-        <text x="286" y="106" className={styles.dimensionText}>Bottom clear = {fmtSketch(region.rebarBottom.clearDistance)} in</text>
+        <rect x={noteX} y={noteY - 24} width="215" height="74" rx="8" fill="#f8fafc" stroke="#94a3b8" />
+        <text x={noteX + 10} y={noteY - 8} className={dimensionTextClass}>Rebar Note</text>
+        <text x={noteX + 10} y={noteY + 8} className={dimensionTextClass}>Top: {topBarText}; Top clear = {fmtSketch(region.rebarTop.clearDistance)} in</text>
+        <text x={noteX + 10} y={noteY + 26} className={dimensionTextClass}>Bottom: {bottomBarText}; Bottom clear = {fmtSketch(region.rebarBottom.clearDistance)} in</text>
+        <line x1={noteX + 18} y1={noteY + 34} x2={centerX + topBars[topBars.length - 2]} y2={topBarY} className={styles.dimensionLine} markerEnd={`url(#arrow-${title ?? 'single'})`} />
+        <line x1={noteX + 78} y1={noteY + 34} x2={centerX + bottomBars[1]} y2={bottomBarY} className={styles.dimensionLine} markerEnd={`url(#arrow-${title ?? 'single'})`} />
       </svg>
     </article>
   );
@@ -269,13 +307,13 @@ function SectionSketch({ region, title }) {
 
 function DiagramPanel({ draft }) {
   if (draft.positiveSameAsNegative) {
-    return <SectionSketch region={draft.negative} />;
+    return <SectionSketch region={draft.negative} compact={false} />;
   }
 
   return (
     <div className={styles.diagramStack}>
-      <SectionSketch title="Positive Region" region={draft.positive} />
-      <SectionSketch title="Negative Region" region={draft.negative} />
+      <SectionSketch title="Positive Region" region={draft.positive} compact />
+      <SectionSketch title="Negative Region" region={draft.negative} compact />
     </div>
   );
 }
