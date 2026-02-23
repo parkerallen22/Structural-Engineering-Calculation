@@ -235,34 +235,35 @@ function SectionSketch({ region, title, compact = false }) {
   const tSlab = toNumber(region.tSlab, 8);
   const bEff = toNumber(region.bEff, Math.max(bfTop, bfBot));
 
-  const viewWidth = 860;
-  const viewHeight = compact ? 540 : 600;
-  const centerX = 320;
-  const baseY = compact ? 430 : 480;
-  const availableHeight = compact ? 360 : 400;
+  const viewWidth = 1180;
+  const viewHeight = compact ? 700 : 760;
+  const viewPadding = 44;
+  const centerX = 430;
+  const baseY = compact ? 570 : 620;
+  const availableHeight = compact ? 500 : 540;
 
   const verticalScale = availableHeight / Math.max(D + tHaunch + tSlab, 1);
-  const horizontalScale = 360 / Math.max(bEff, bfTop, bfBot, 1);
+  const horizontalScale = 500 / Math.max(bEff, bfTop, bfBot, 1);
 
-  const slabH = clampInchesToPx(tSlab, verticalScale, 32, compact ? 120 : 140);
-  const haunchH = clampInchesToPx(tHaunch, verticalScale, 8, 44);
-  const steelH = clampInchesToPx(D, verticalScale, 120, compact ? 250 : 280);
+  const slabH = clampInchesToPx(tSlab, verticalScale, 42, compact ? 170 : 190);
+  const haunchH = clampInchesToPx(tHaunch, verticalScale, 14, 64);
+  const steelH = clampInchesToPx(D, verticalScale, 190, compact ? 360 : 390);
 
-  const topFlangeH = clampInchesToPx(tfTop, verticalScale, 10, 30);
-  const bottomFlangeH = clampInchesToPx(tfBot, verticalScale, 10, 30);
-  const webH = Math.max(20, steelH - topFlangeH - bottomFlangeH);
+  const topFlangeH = clampInchesToPx(tfTop, verticalScale, 16, 46);
+  const bottomFlangeH = clampInchesToPx(tfBot, verticalScale, 16, 46);
+  const webH = Math.max(28, steelH - topFlangeH - bottomFlangeH);
 
-  const slabW = clampInchesToPx(bEff, horizontalScale, 220, 440);
-  const topFlangeW = clampInchesToPx(bfTop, horizontalScale, 90, 320);
-  const bottomFlangeW = clampInchesToPx(bfBot, horizontalScale, 90, 320);
-  const webW = clampInchesToPx(tw, horizontalScale, 12, 48);
+  const slabW = clampInchesToPx(bEff, horizontalScale, 340, 620);
+  const topFlangeW = clampInchesToPx(bfTop, horizontalScale, 140, 440);
+  const bottomFlangeW = clampInchesToPx(bfBot, horizontalScale, 140, 440);
+  const webW = clampInchesToPx(tw, horizontalScale, 20, 64);
 
   const steelTopY = baseY - steelH;
   const haunchY = steelTopY - haunchH;
   const slabY = haunchY - slabH;
 
-  const topBarY = slabY + clampInchesToPx(region.rebarTop.clearDistance, verticalScale, 10, slabH * 0.45);
-  const bottomBarY = slabY + slabH - clampInchesToPx(region.rebarBottom.clearDistance, verticalScale, 10, slabH * 0.45);
+  const topBarY = slabY + clampInchesToPx(region.rebarTop.clearDistance, verticalScale, 14, slabH * 0.45);
+  const bottomBarY = slabY + slabH - clampInchesToPx(region.rebarBottom.clearDistance, verticalScale, 14, slabH * 0.45);
   const topBars = computeBarLayout(slabW - 28, region.rebarTop.spacing, bEff);
   const bottomBars = computeBarLayout(slabW - 28, region.rebarBottom.spacing, bEff);
   const topBarR = computeBarRadius(region.rebarTop.barSize);
@@ -270,11 +271,11 @@ function SectionSketch({ region, title, compact = false }) {
 
   const markerId = `arrow-${title ?? 'single'}`;
   const dimensionTextClass = styles.dimensionText;
-  const smallDimX = centerX + Math.max(topFlangeW, bottomFlangeW) / 2 + 56;
-  const twDimY = steelTopY + topFlangeH + webH / 2 - 20;
-  const topNoteY = compact ? 96 : 114;
-  const bottomNoteY = compact ? 142 : 164;
-  const noteX = 646;
+  const smallDimX = centerX + Math.max(topFlangeW, bottomFlangeW) / 2 + 84;
+  const twDimY = steelTopY + topFlangeH + webH / 2 - 26;
+  const topNoteY = compact ? 124 : 146;
+  const bottomNoteY = compact ? 176 : 202;
+  const noteX = 884;
 
   const topBarText = region.rebarTop.alternatingBars
     ? `${region.rebarTop.barSize} @ ${fmtSketch(region.rebarTop.spacing)} in, ${region.rebarTop.altBarSize} @ ${fmtSketch(region.rebarTop.altSpacing)} in`
@@ -287,10 +288,10 @@ function SectionSketch({ region, title, compact = false }) {
   return (
     <article className={styles.diagramCard}>
       {title ? <h4>{title}</h4> : null}
-      <svg className={styles.sectionSketch} viewBox={`0 0 ${viewWidth} ${viewHeight}`} role="img" aria-label={`Composite section sketch ${title ?? ''}`}>
+      <svg className={`${styles.sectionSketch} ${compact ? styles.sectionSketchCompact : ''}`} viewBox={`${-viewPadding} ${-viewPadding} ${viewWidth + viewPadding * 2} ${viewHeight + viewPadding * 2}`} role="img" aria-label={`Composite section sketch ${title ?? ''}`}>
         <defs>
-          <marker id={markerId} markerWidth="6" markerHeight="6" refX="0" refY="3" markerUnits="strokeWidth" orient="auto-start-reverse">
-            <path d="M0,3 L6,0 L6,6 z" fill="#64748b" />
+          <marker id={markerId} markerWidth="12" markerHeight="12" refX="2" refY="6" markerUnits="strokeWidth" orient="auto-start-reverse">
+            <path d="M0,6 L12,0 L12,12 z" fill="#64748b" />
           </marker>
         </defs>
 
