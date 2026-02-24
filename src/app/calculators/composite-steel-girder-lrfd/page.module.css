@@ -260,4 +260,14 @@
   flex-wrap: wrap;
   gap: 0.6rem;
   align-items: flex-end;
+  border: 1px solid #dbe4ef;
+  border-radius: 12px;
+  padding: 0.7rem;
+  background: #f8fafc;
+}
+
+.sectionRowTitle {
+  width: 100%;
+  font-weight: 600;
+  color: #374151;
 }
