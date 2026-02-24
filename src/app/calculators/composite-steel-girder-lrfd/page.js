@@ -407,7 +407,7 @@ function withLocationsAndDemands(project) {
 
   const sectionLabels =
     project.schedules?.sectionLabels?.length
-      ? (project.schedules.sectionConstant ? [project.schedules.sectionLabels[0]] : project.schedules.sectionLabels)
+      ? project.schedules.sectionLabels
       : [createSectionLabel('SEC-A')];
   const sectionConstantChoice = project.schedules?.sectionConstantChoice
     ?? (typeof project.schedules?.sectionConstant === 'boolean' ? (project.schedules.sectionConstant ? 'yes' : 'no') : null);
@@ -670,6 +670,9 @@ export default function CompositeSteelGirderLrfdPage() {
   const allTabsReadOnly = activeTab !== 'Inputs' && !project.settings.allowEditingInputsOnOtherTabs;
   const sectionConstantChoice = project.schedules.sectionConstantChoice;
   const sectionChoiceMade = sectionConstantChoice === 'yes' || sectionConstantChoice === 'no';
+  const displayedSectionLabels = project.schedules.sectionConstant
+    ? project.schedules.sectionLabels.slice(0, 1)
+    : project.schedules.sectionLabels;
 
 
   const runSectionLocateValidation = (targetProject = project) => {
@@ -1132,7 +1135,9 @@ export default function CompositeSteelGirderLrfdPage() {
                       ...current.schedules,
                       sectionConstantChoice: 'yes',
                       sectionConstant: true,
-                      sectionLabels: [current.schedules.sectionLabels[0] || createSectionLabel('SEC-A')],
+                      sectionLabels: current.schedules.sectionLabels.length
+                        ? current.schedules.sectionLabels
+                        : [createSectionLabel('SEC-A')],
                     },
                   }))
                 }
@@ -1163,8 +1168,11 @@ export default function CompositeSteelGirderLrfdPage() {
             {sectionChoiceMade && (
               <>
                 <div className={styles.sectionInputsHorizontal}>
-                  {project.schedules.sectionLabels.map((section) => (
+                  {displayedSectionLabels.map((section, index) => (
                     <div key={section.id} className={styles.sectionRow}>
+                      {!project.schedules.sectionConstant && (
+                        <div className={styles.sectionRowTitle}>Section {index + 1}</div>
+                      )}
                       <label className={styles.inlineField}>Section label<input value={section.name} onChange={(event) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, sectionLabels: current.schedules.sectionLabels.map((entry) => entry.id === section.id ? { ...entry, name: event.target.value } : entry) } }))} /></label>
                       {[
                         ['D_in', 'D (in)'],
@@ -1184,18 +1192,26 @@ export default function CompositeSteelGirderLrfdPage() {
                           type="button"
                           className={styles.secondaryButton}
                           onClick={() =>
-                            updateProject((current) => ({
-                              ...current,
-                              schedules: {
-                                ...current.schedules,
-                                sectionLabels: current.schedules.sectionLabels.filter((entry) => entry.id !== section.id),
-                                sectionLocateSegments: (current.schedules.sectionLocateSegments || []).map((segment) =>
-                                  segment.labelId === section.id
-                                    ? { ...segment, labelId: current.schedules.sectionLabels.find((entry) => entry.id !== section.id)?.id || '' }
-                                    : segment,
-                                ),
-                              },
-                            }))
+                            updateProject((current) => {
+                              const nextSectionLabels = current.schedules.sectionLabels.filter((entry) => entry.id !== section.id);
+                              const fallbackId = nextSectionLabels[0]?.id || '';
+                              const isNowSingleSection = nextSectionLabels.length <= 1;
+
+                              return {
+                                ...current,
+                                schedules: {
+                                  ...current.schedules,
+                                  sectionConstantChoice: isNowSingleSection ? 'yes' : current.schedules.sectionConstantChoice,
+                                  sectionConstant: isNowSingleSection ? true : current.schedules.sectionConstant,
+                                  sectionLabels: nextSectionLabels,
+                                  sectionLocateSegments: (current.schedules.sectionLocateSegments || []).map((segment) =>
+                                    segment.labelId === section.id
+                                      ? { ...segment, labelId: fallbackId }
+                                      : segment,
+                                  ),
+                                },
+                              };
+                            })
                           }
                         >
                           Remove section
