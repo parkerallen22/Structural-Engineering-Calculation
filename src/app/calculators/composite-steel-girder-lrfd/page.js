@@ -133,6 +133,10 @@ function createInitialProject() {
     geometry: {
       numberOfSpans: 2,
       spanLengths_ft: [120, 120],
+      overhangsVary: false,
+      overhangLength_ft: 0,
+      overhangLeft_ft: 0,
+      overhangRight_ft: 0,
       skew_deg: 0,
       numberOfGirders: 4,
       constantSpacing: true,
@@ -442,6 +446,13 @@ function withLocationsAndDemands(project) {
 
   return {
     ...project,
+    geometry: {
+      ...project.geometry,
+      overhangsVary: Boolean(project.geometry?.overhangsVary),
+      overhangLength_ft: project.geometry?.overhangLength_ft ?? 0,
+      overhangLeft_ft: project.geometry?.overhangLeft_ft ?? 0,
+      overhangRight_ft: project.geometry?.overhangRight_ft ?? 0,
+    },
     derived: { locations },
     schedules: {
       ...project.schedules,
@@ -923,6 +934,24 @@ export default function CompositeSteelGirderLrfdPage() {
             </div>
 
             <h4>Span lengths</h4>
+            <label className={styles.inlineCheckbox}>
+              <input
+                type="checkbox"
+                checked={Boolean(project.geometry.overhangsVary)}
+                onChange={(event) =>
+                  updateProject((current) => ({
+                    ...current,
+                    geometry: {
+                      ...current.geometry,
+                      overhangsVary: event.target.checked,
+                      overhangLeft_ft: event.target.checked ? current.geometry.overhangLeft_ft : current.geometry.overhangLength_ft,
+                      overhangRight_ft: event.target.checked ? current.geometry.overhangRight_ft : current.geometry.overhangLength_ft,
+                    },
+                  }))
+                }
+              />
+              Overhang lengths vary
+            </label>
             <div className={styles.grid4}>
               {project.geometry.spanLengths_ft.map((span, index) => (
                 <label key={`span-${index}`} className={styles.field}>
@@ -944,6 +973,42 @@ export default function CompositeSteelGirderLrfdPage() {
                   />
                 </label>
               ))}
+              {project.geometry.overhangsVary ? (
+                <>
+                  <label className={styles.field}>
+                    Left overhang (ft)
+                    <NumericInput
+                      value={project.geometry.overhangLeft_ft}
+                      onCommit={(value) => updateProject((current) => ({ ...current, geometry: { ...current.geometry, overhangLeft_ft: value } }))}
+                    />
+                  </label>
+                  <label className={styles.field}>
+                    Right overhang (ft)
+                    <NumericInput
+                      value={project.geometry.overhangRight_ft}
+                      onCommit={(value) => updateProject((current) => ({ ...current, geometry: { ...current.geometry, overhangRight_ft: value } }))}
+                    />
+                  </label>
+                </>
+              ) : (
+                <label className={styles.field}>
+                  Overhang length (ft)
+                  <NumericInput
+                    value={project.geometry.overhangLength_ft}
+                    onCommit={(value) =>
+                      updateProject((current) => ({
+                        ...current,
+                        geometry: {
+                          ...current.geometry,
+                          overhangLength_ft: value,
+                          overhangLeft_ft: value,
+                          overhangRight_ft: value,
+                        },
+                      }))
+                    }
+                  />
+                </label>
+              )}
             </div>
 
             <h4>Girder spacing</h4>
@@ -990,27 +1055,53 @@ export default function CompositeSteelGirderLrfdPage() {
             <PlaceholderSketch title="Elevation">
               <svg viewBox="0 0 900 220" width="100%" height="220" role="img" aria-label="Bridge elevation">
                 <rect x="0" y="0" width="900" height="220" fill="white" />
-                <line x1="40" y1="100" x2="860" y2="100" stroke="black" strokeWidth="3" />
                 {(() => {
-                  const total = project.geometry.spanLengths_ft.reduce((sum, value) => sum + toNumber(value), 0) || 1;
-                  let cursor = 40;
+                  const spanTotal = project.geometry.spanLengths_ft.reduce((sum, value) => sum + toNumber(value), 0);
+                  const leftOverhang = toNumber(project.geometry.overhangsVary ? project.geometry.overhangLeft_ft : project.geometry.overhangLength_ft, 0);
+                  const rightOverhang = toNumber(project.geometry.overhangsVary ? project.geometry.overhangRight_ft : project.geometry.overhangLength_ft, 0);
+                  const total = spanTotal + leftOverhang + rightOverhang || 1;
+                  const beamStartX = 40;
+                  const beamEndX = 860;
+                  const beamBottomY = 145;
+                  const beamDepth = 24;
+                  const beamTopY = beamBottomY - beamDepth;
+                  const flangeThickness = 5;
+                  const supportTopY = beamBottomY;
+                  const supportHalfBase = 6;
+                  const supportHeight = 15;
+                  let cursor = beamStartX + (leftOverhang / total) * (beamEndX - beamStartX);
+
+                  const supports = [cursor];
                   return project.geometry.spanLengths_ft.map((span, index) => {
-                    const width = (toNumber(span) / total) * 820;
+                    const width = (toNumber(span) / total) * (beamEndX - beamStartX);
                     const supportX = cursor;
                     cursor += width;
+                    supports.push(cursor);
                     return (
                       <g key={`span-svg-${index}`}>
-                        <polygon points={`${supportX},140 ${supportX - 12},170 ${supportX + 12},170`} fill="#d1d5db" stroke="black" />
-                        <text x={supportX + width / 2 - 28} y="86" fontSize="14" fontWeight="700">L{index + 1}={formatDisplay(span)} ft</text>
-                        <line x1={supportX} y1="115" x2={supportX + width} y2="115" stroke="#111" strokeWidth="1" />
+                        <text x={supportX + width / 2} y="92" textAnchor="middle" fontSize="14" fontWeight="700">
+                          L
+                          <tspan baselineShift="sub" fontSize="10">{index + 1}</tspan>
+                          = {formatDisplay(span)} ft
+                        </text>
                       </g>
                     );
-                  });
+                  }).concat(
+                    <g key="beam-shape">
+                      <rect x={beamStartX} y={beamTopY} width={beamEndX - beamStartX} height={beamDepth} fill="#9ca3af" stroke="#111" strokeWidth="1.5" />
+                      <rect x={beamStartX} y={beamTopY} width={beamEndX - beamStartX} height={flangeThickness} fill="#6b7280" />
+                      <rect x={beamStartX} y={beamBottomY - flangeThickness} width={beamEndX - beamStartX} height={flangeThickness} fill="#6b7280" />
+                      {supports.map((supportX, index) => (
+                        <polygon
+                          key={`support-${index}`}
+                          points={`${supportX},${supportTopY} ${supportX - supportHalfBase},${supportTopY + supportHeight} ${supportX + supportHalfBase},${supportTopY + supportHeight}`}
+                          fill="#d1d5db"
+                          stroke="black"
+                        />
+                      ))}
+                    </g>,
+                  );
                 })()}
-                <polygon points="860,140 848,170 872,170" fill="#d1d5db" stroke="black" />
-                <text x="40" y="200" fontSize="14" fontWeight="700">
-                  Skew: {formatDisplay(project.geometry.skew_deg)}° | Girders: {formatDisplay(project.geometry.numberOfGirders)}
-                </text>
               </svg>
             </PlaceholderSketch>
 
