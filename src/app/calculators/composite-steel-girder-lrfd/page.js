@@ -21,7 +21,7 @@ const TAB_LABELS = [
 ];
 
 const SIGN_CONVENTION_NOTE =
-  'Sign convention: +M = sagging (typical midspan), −M = hogging (typical at supports). User enters −M as negative.';
+  'Enter undistributed and unfactored moments and shears. At Piers, the maximum -M shall be entered and near midspans, the maximum +M shall be entered.';
 
 const SECTION_CONTIGUITY_TOLERANCE = 1e-3;
 const REBAR_BAR_OPTIONS = ['', '#3', '#4', '#5', '#6', '#7', '#8', '#9', '#10', '#11'];
@@ -293,7 +293,7 @@ function withLocationsAndDemands(project) {
   for (let i = 0; i <= project.geometry.numberOfSpans; i += 1) {
     const isFirst = i === 0;
     const isLast = i === project.geometry.numberOfSpans;
-    const name = isFirst ? 'Abutment A' : isLast ? 'Abutment B' : `P${i}`;
+    const name = isFirst ? 'Abutment A' : isLast ? 'Abutment B' : `Pier ${i}`;
 
     supportLocations.push({
       id: `support-${i}`,
@@ -1444,24 +1444,8 @@ export default function CompositeSteelGirderLrfdPage() {
           </section>
 
           <section className={styles.card}>
-            <h3 className={styles.sectionTitle}>Demand Entry by Location</h3>
-            <p className={styles.muted}>Enter M with sign: +M sagging (typ. midspan), −M hogging (typ. supports). Enter −M as negative.</p>
-            <h4>Span location points (x′ from left support)</h4>
-            <div className={styles.tableWrap}>
-              <table className={styles.table}><thead><tr><th>Span</th><th>Length (ft)</th><th>Controlling Moment @ L/2</th><th>x′ (ft)</th></tr></thead><tbody>
-                {project.geometry.spanPoints.map((point, index) => {
-                  const spanLength = toNumber(project.geometry.spanLengths_ft[index], 0);
-                  const xPrime = point.momentAtMid ? spanLength / 2 : point.xPrime_ft;
-                  return (
-                    <tr key={`point-${index}`}>
-                      <td>Span {index + 1}</td><td>{formatDisplay(project.geometry.spanLengths_ft[index])}</td>
-                      <td><input type="checkbox" checked={point.momentAtMid} onChange={(event)=>updateProject((current)=>{const next=[...current.geometry.spanPoints]; next[index]={...next[index], momentAtMid:event.target.checked, xPrime_ft:event.target.checked?toNumber(current.geometry.spanLengths_ft[index],0)/2:next[index].xPrime_ft}; return {...current, geometry:{...current.geometry, spanPoints:next}};})} /></td>
-                      <td><NumericInput value={xPrime} disabled={point.momentAtMid} onCommit={(value)=>updateProject((current)=>{const next=[...current.geometry.spanPoints]; next[index]={...next[index], xPrime_ft:value}; return {...current, geometry:{...current.geometry, spanPoints:next}};})} /></td>
-                    </tr>
-                  );
-                })}
-              </tbody></table>
-            </div>
+            <h3 className={styles.sectionTitle}>Input from STAAD</h3>
+            <p className={styles.muted}>Enter undistributed and unfactored moments and shears. At Piers, the maximum -M shall be entered and near midspans, the maximum +M shall be entered.</p>
             <div className={styles.tableWrap}>
               <table className={styles.table}>
                 <thead>
@@ -1476,7 +1460,46 @@ export default function CompositeSteelGirderLrfdPage() {
                   {project.derived.locations.map((location) => (
                     <tr key={location.id}>
                       <td>{location.name}</td>
-                      <td>{formatDisplay(location.x_global_ft)}</td>
+                      <td>
+                        {location.type === 'span' ? (
+                          <div className={styles.xGlobalInputCell}>
+                            <NumericInput
+                              value={location.x_global_ft}
+                              onCommit={(value) =>
+                                updateProject((current) => {
+                                  const nextPoints = [...current.geometry.spanPoints];
+                                  nextPoints[location.spanIndex] = { ...nextPoints[location.spanIndex], xPrime_ft: value };
+                                  return { ...current, geometry: { ...current.geometry, spanPoints: nextPoints } };
+                                })
+                              }
+                              disabled={project.geometry.spanPoints[location.spanIndex]?.momentAtMid}
+                            />
+                            <label className={styles.inlineCheckbox}>
+                              <input
+                                type="checkbox"
+                                checked={Boolean(project.geometry.spanPoints[location.spanIndex]?.momentAtMid)}
+                                onChange={(event) =>
+                                  updateProject((current) => {
+                                    const nextPoints = [...current.geometry.spanPoints];
+                                    const spanLength = toNumber(current.geometry.spanLengths_ft[location.spanIndex], 0);
+                                    nextPoints[location.spanIndex] = {
+                                      ...nextPoints[location.spanIndex],
+                                      momentAtMid: event.target.checked,
+                                      xPrime_ft: event.target.checked ? spanLength / 2 : nextPoints[location.spanIndex]?.xPrime_ft,
+                                    };
+                                    return { ...current, geometry: { ...current.geometry, spanPoints: nextPoints } };
+                                  })
+                                }
+                              />
+                              midspan
+                            </label>
+                          </div>
+                        ) : location.name.startsWith('Pier') ? (
+                          'At Pier'
+                        ) : (
+                          formatDisplay(location.x_global_ft)
+                        )}
+                      </td>
                       {['DC1', 'DC2', 'DW', 'LL_IM'].map((effect) => (
                         <td key={`${location.id}-${effect}-m`}><NumericInput value={project.demandByLocation[location.id]?.[effect]?.M_kft} onCommit={(value) => setDemand(location.id, effect, 'M_kft', value)} /></td>
                       ))}
