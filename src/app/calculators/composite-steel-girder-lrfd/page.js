@@ -144,6 +144,7 @@ function createInitialProject() {
       ],
     },
     schedules: {
+      sectionConstantChoice: null,
       sectionConstant: false,
       sectionLabels: [createSectionLabel('SEC-A')],
       sectionAssignments: [
@@ -334,12 +335,20 @@ function withLocationsAndDemands(project) {
   const nextOverrides = { ...project.comboOverridesByLocation };
 
   locations.forEach((location) => {
+    const legacyLiveLoad = nextDemand[location.id]?.LL_IM;
     if (!nextDemand[location.id]) {
       nextDemand[location.id] = {
         DC1: { M_kft: null, V_k: null },
         DC2: { M_kft: null, V_k: null },
         DW: { M_kft: null, V_k: null },
-        LL_IM: { M_kft: null, V_k: null },
+        LL_truck: { M_kft: null, V_k: null },
+        LL_tandem: { M_kft: null, V_k: null },
+      };
+    } else {
+      nextDemand[location.id] = {
+        ...nextDemand[location.id],
+        LL_truck: nextDemand[location.id].LL_truck ?? legacyLiveLoad ?? { M_kft: null, V_k: null },
+        LL_tandem: nextDemand[location.id].LL_tandem ?? { M_kft: null, V_k: null },
       };
     }
     if (!nextOverrides[location.id]) {
@@ -396,6 +405,8 @@ function withLocationsAndDemands(project) {
     project.schedules?.sectionLabels?.length
       ? (project.schedules.sectionConstant ? [project.schedules.sectionLabels[0]] : project.schedules.sectionLabels)
       : [createSectionLabel('SEC-A')];
+  const sectionConstantChoice = project.schedules?.sectionConstantChoice
+    ?? (typeof project.schedules?.sectionConstant === 'boolean' ? (project.schedules.sectionConstant ? 'yes' : 'no') : null);
 
   const totalLength = spanLengths.reduce((sum, value) => sum + toNumber(value), 0);
   const legacySectionLocations = project.schedules?.sectionLocations || [];
@@ -434,6 +445,7 @@ function withLocationsAndDemands(project) {
     derived: { locations },
     schedules: {
       ...project.schedules,
+      sectionConstantChoice,
       spanStudLayouts,
       supportStudLayouts,
       studLayout: {
@@ -475,7 +487,14 @@ function buildFactoredCombinations(demandByLocation) {
     const normalizeShear = (value) => toNumber(value);
     const calc = (factorMap, field) =>
       Object.entries(factorMap).reduce((sum, [effectKey, factor]) => {
-        const entry = effects[effectKey] || { M_kft: 0, V_k: 0 };
+        let entry = effects[effectKey] || { M_kft: 0, V_k: 0 };
+        if (effectKey === 'LL_IM') {
+          const truck = effects.LL_truck || { M_kft: 0, V_k: 0 };
+          const tandem = effects.LL_tandem || { M_kft: 0, V_k: 0 };
+          const truckValue = field === 'M' ? normalizeMoment(truck.M_kft) : normalizeShear(truck.V_k);
+          const tandemValue = field === 'M' ? normalizeMoment(tandem.M_kft) : normalizeShear(tandem.V_k);
+          return sum + factor * (Math.abs(truckValue) >= Math.abs(tandemValue) ? truckValue : tandemValue);
+        }
         const value = field === 'M' ? normalizeMoment(entry.M_kft) : normalizeShear(entry.V_k);
         return sum + factor * value;
       }, 0);
@@ -527,8 +546,8 @@ function computeAutoDeadLoad(project) {
 function PlaceholderSketch({ title, children }) {
   return (
     <div className={styles.svgBlock}>
-      <h4>{title}</h4>
       {children}
+      <h4 className={styles.diagramLabel}>{title}</h4>
     </div>
   );
 }
@@ -542,7 +561,7 @@ function Symbol({ label, sub }) {
   );
 }
 
-function NumericInput({ value, onCommit, disabled = false }) {
+function NumericInput({ value, onCommit, disabled = false, className = "" }) {
   const [draft, setDraft] = useState(toInputValue(value));
 
   useEffect(() => {
@@ -551,6 +570,7 @@ function NumericInput({ value, onCommit, disabled = false }) {
 
   return (
     <input
+      className={className}
       type="text"
       inputMode="decimal"
       value={draft}
@@ -637,6 +657,9 @@ export default function CompositeSteelGirderLrfdPage() {
   };
 
   const allTabsReadOnly = activeTab !== 'Inputs' && !project.settings.allowEditingInputsOnOtherTabs;
+  const sectionConstantChoice = project.schedules.sectionConstantChoice;
+  const sectionChoiceMade = sectionConstantChoice === 'yes' || sectionConstantChoice === 'no';
+
 
   const runSectionLocateValidation = (targetProject = project) => {
     const error = validateSectionLocateSegments(targetProject);
@@ -899,11 +922,11 @@ export default function CompositeSteelGirderLrfdPage() {
               </label>
             </div>
 
-            <h4>Span lengths (ft)</h4>
+            <h4>Span lengths</h4>
             <div className={styles.grid4}>
               {project.geometry.spanLengths_ft.map((span, index) => (
                 <label key={`span-${index}`} className={styles.field}>
-                  Span {index + 1}
+                  Span {index + 1} (ft)
                   <NumericInput
                     value={span}
                     onCommit={(value) =>
@@ -923,7 +946,7 @@ export default function CompositeSteelGirderLrfdPage() {
               ))}
             </div>
 
-            <h4>Girder spacing (ft)</h4>
+            <h4>Girder spacing</h4>
             {project.geometry.constantSpacing ? (
               <label className={styles.field}>
                 Constant spacing (ft)
@@ -948,7 +971,7 @@ export default function CompositeSteelGirderLrfdPage() {
               <div className={styles.grid4}>
                 {resizeArray(project.geometry.spacingArray_ft, Math.max(0, project.geometry.numberOfGirders - 1), project.geometry.spacing_ft).map((value, index) => (
                   <label className={styles.field} key={`spacing-${index}`}>
-                    Between Girder {index + 1} & {index + 2}
+                    Between Girder {index + 1} & {index + 2} (ft)
                     <NumericInput
                       value={value}
                       onCommit={(nextValue) =>
@@ -964,7 +987,7 @@ export default function CompositeSteelGirderLrfdPage() {
               </div>
             )}
 
-            <PlaceholderSketch title="Elevation diagram (dynamic)">
+            <PlaceholderSketch title="Elevation">
               <svg viewBox="0 0 900 220" width="100%" height="220" role="img" aria-label="Bridge elevation">
                 <rect x="0" y="0" width="900" height="220" fill="white" />
                 <line x1="40" y1="100" x2="860" y2="100" stroke="black" strokeWidth="3" />
@@ -991,7 +1014,7 @@ export default function CompositeSteelGirderLrfdPage() {
               </svg>
             </PlaceholderSketch>
 
-            <PlaceholderSketch title="Bridge Cross Section">
+            <PlaceholderSketch title="Cross Section">
               <svg viewBox="0 0 820 230" width="100%" height="230" role="img" aria-label="Bridge cross section">
                 <rect width="820" height="230" fill="white" />
                 <path d="M60 70 Q410 30 760 70 L760 88 L60 88 Z" fill="#e5e7eb" stroke="black" strokeWidth="2" />
@@ -1006,210 +1029,183 @@ export default function CompositeSteelGirderLrfdPage() {
           </section>
 
           <section className={styles.card}>
-            <h3 className={styles.sectionTitle}>Section Schedule</h3>
-            <label className={styles.inlineCheckbox}>
-              <input
-                type="checkbox"
-                checked={project.schedules.sectionConstant}
-                onChange={(event) =>
+            <h3 className={styles.sectionTitle}>The Girder Section is Constant</h3>
+            <div className={styles.actions}>
+              <button
+                type="button"
+                className={sectionConstantChoice === 'yes' ? styles.button : styles.secondaryButton}
+                onClick={() =>
                   updateProject((current) => ({
                     ...current,
                     schedules: {
                       ...current.schedules,
-                      sectionConstant: event.target.checked,
-                      sectionLabels: event.target.checked ? [current.schedules.sectionLabels[0] || createSectionLabel('SEC-A')] : current.schedules.sectionLabels,
+                      sectionConstantChoice: 'yes',
+                      sectionConstant: true,
+                      sectionLabels: [current.schedules.sectionLabels[0] || createSectionLabel('SEC-A')],
                     },
                   }))
                 }
-              />
-              Section constant along girder
-            </label>
-
-            <div className={styles.grid3}>
-              {project.schedules.sectionLabels.map((section) => (
-                <div key={section.id} className={styles.svgBlock}>
-                  <label className={styles.field}>Section label<input value={section.name} onChange={(event) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, sectionLabels: current.schedules.sectionLabels.map((entry) => entry.id === section.id ? { ...entry, name: event.target.value } : entry) } }))} /></label>
-                  {[
-                    ['D_in', 'D (in)'],
-                    ['tw_in', 'tw (in)'],
-                    ['tf_top_in', 'tf_top (in)'],
-                    ['bf_top_in', 'bf_top (in)'],
-                    ['tf_bot_in', 'tf_bot (in)'],
-                    ['bf_bot_in', 'bf_bot (in)'],
-                  ].map(([key, title]) => (
-                    <label className={styles.field} key={`${section.id}-${key}`}>
-                      {title}
-                      <NumericInput value={section[key]} onCommit={(value) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, sectionLabels: current.schedules.sectionLabels.map((entry) => entry.id === section.id ? { ...entry, [key]: value } : entry) } }))} />
-                    </label>
-                  ))}
-                  {(!project.schedules.sectionConstant && project.schedules.sectionLabels.length > 1) && (
-                    <div className={styles.actions}>
-                      <button
-                        type="button"
-                        className={styles.secondaryButton}
-                        onClick={() =>
-                          updateProject((current) => ({
-                            ...current,
-                            schedules: {
-                              ...current.schedules,
-                              sectionLabels: current.schedules.sectionLabels.filter((entry) => entry.id !== section.id),
-                              sectionLocateSegments: (current.schedules.sectionLocateSegments || []).map((segment) =>
-                                segment.labelId === section.id
-                                  ? { ...segment, labelId: current.schedules.sectionLabels.find((entry) => entry.id !== section.id)?.id || '' }
-                                  : segment,
-                              ),
-                            },
-                          }))
-                        }
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-            {!project.schedules.sectionConstant && (
+              >
+                Yes
+              </button>
               <button
                 type="button"
-                className={styles.secondaryButton}
+                className={sectionConstantChoice === 'no' ? styles.button : styles.secondaryButton}
                 onClick={() =>
-                  updateProject((current) => {
-                    const nextSection = createSectionLabel(`SEC-${current.schedules.sectionLabels.length + 1}`);
-                    return {
-                      ...current,
-                      schedules: {
-                        ...current.schedules,
-                        sectionLabels: [...current.schedules.sectionLabels, nextSection],
-                      },
-                    };
-                  })
+                  updateProject((current) => ({
+                    ...current,
+                    schedules: {
+                      ...current.schedules,
+                      sectionConstantChoice: 'no',
+                      sectionConstant: false,
+                      sectionLabels: current.schedules.sectionLabels.length >= 2
+                        ? current.schedules.sectionLabels
+                        : [...current.schedules.sectionLabels, createSectionLabel('SEC-B')],
+                    },
+                  }))
                 }
               >
-                Add section
+                No
               </button>
-            )}
+            </div>
 
-            {!project.schedules.sectionConstant && (
-              <div>
-                <h4>Locate Sections</h4>
-                {sectionLocateError && <div className={`${styles.callout} ${styles.warning}`}>{sectionLocateError}</div>}
-                <div className={styles.tableWrap}>
-                  <table className={styles.table}>
-                    <thead><tr><th>Section Label</th><th>Start Location</th><th>End Location</th><th /></tr></thead>
-                    <tbody>
-                      {(project.schedules.sectionLocateSegments || []).map((locationRow) => {
-                        const start = Number(locationRow.startX);
-                        const end = Number(locationRow.endX);
-                        const hasRangeError = Number.isFinite(start) && Number.isFinite(end) && start >= end;
-                        return (
-                        <tr key={locationRow.id}>
-                          <td>
-                            <select
-                              value={locationRow.labelId}
-                              onChange={(event) =>
-                                updateProject((current) => ({
-                                  ...current,
-                                  schedules: {
-                                    ...current.schedules,
-                                    sectionLocateSegments: (current.schedules.sectionLocateSegments || []).map((entry) =>
-                                      entry.id === locationRow.id ? { ...entry, labelId: event.target.value } : entry,
-                                    ),
-                                  },
-                                }))
-                              }
-                            >
-                              {!project.schedules.sectionLabels.length && <option value="">No labels defined</option>}
-                              {project.schedules.sectionLabels.map((label) => (
-                                <option key={label.id} value={label.id}>{label.name || 'Untitled section'}</option>
-                              ))}
-                            </select>
-                          </td>
-                          <td>
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              value={locationRow.startX}
-                              onChange={(event) =>
-                                updateProject((current) => ({
-                                  ...current,
-                                  schedules: {
-                                    ...current.schedules,
-                                    sectionLocateSegments: (current.schedules.sectionLocateSegments || []).map((entry) =>
-                                      entry.id === locationRow.id ? { ...entry, startX: event.target.value } : entry,
-                                    ),
-                                  },
-                                }))
-                              }
-                              onBlur={() => runSectionLocateValidation()}
-                            />
-                          </td>
-                          <td>
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              value={locationRow.endX}
-                              onChange={(event) =>
-                                updateProject((current) => ({
-                                  ...current,
-                                  schedules: {
-                                    ...current.schedules,
-                                    sectionLocateSegments: (current.schedules.sectionLocateSegments || []).map((entry) =>
-                                      entry.id === locationRow.id ? { ...entry, endX: event.target.value } : entry,
-                                    ),
-                                  },
-                                }))
-                              }
-                              onBlur={() => runSectionLocateValidation()}
-                            />
-                            {hasRangeError && <div className={styles.muted}>Start location should be less than end location.</div>}
-                          </td>
-                          <td>
-                            <button
-                              type="button"
-                              className={styles.secondaryButton}
-                              onClick={() =>
-                                updateProject((current) => ({
-                                  ...current,
-                                  schedules: {
-                                    ...current.schedules,
-                                    sectionLocateSegments: current.schedules.sectionLocateSegments.filter((entry) => entry.id !== locationRow.id),
-                                  },
-                                }))
-                              }
-                            >
-                              Remove
-                            </button>
-                          </td>
-                        </tr>
-                      )})}
-                    </tbody>
-                  </table>
+            {sectionChoiceMade && (
+              <>
+                <div className={styles.sectionInputsHorizontal}>
+                  {project.schedules.sectionLabels.map((section) => (
+                    <div key={section.id} className={styles.sectionRow}>
+                      <label className={styles.inlineField}>Section label<input value={section.name} onChange={(event) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, sectionLabels: current.schedules.sectionLabels.map((entry) => entry.id === section.id ? { ...entry, name: event.target.value } : entry) } }))} /></label>
+                      {[
+                        ['D_in', 'D (in)'],
+                        ['tw_in', 'tw (in)'],
+                        ['tf_top_in', 'tf_top (in)'],
+                        ['bf_top_in', 'bf_top (in)'],
+                        ['tf_bot_in', 'tf_bot (in)'],
+                        ['bf_bot_in', 'bf_bot (in)'],
+                      ].map(([key, title]) => (
+                        <label className={styles.inlineField} key={`${section.id}-${key}`}>
+                          {title}
+                          <NumericInput value={section[key]} onCommit={(value) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, sectionLabels: current.schedules.sectionLabels.map((entry) => entry.id === section.id ? { ...entry, [key]: value } : entry) } }))} />
+                        </label>
+                      ))}
+                      {(!project.schedules.sectionConstant && project.schedules.sectionLabels.length > 1) && (
+                        <button
+                          type="button"
+                          className={styles.secondaryButton}
+                          onClick={() =>
+                            updateProject((current) => ({
+                              ...current,
+                              schedules: {
+                                ...current.schedules,
+                                sectionLabels: current.schedules.sectionLabels.filter((entry) => entry.id !== section.id),
+                                sectionLocateSegments: (current.schedules.sectionLocateSegments || []).map((segment) =>
+                                  segment.labelId === section.id
+                                    ? { ...segment, labelId: current.schedules.sectionLabels.find((entry) => entry.id !== section.id)?.id || '' }
+                                    : segment,
+                                ),
+                              },
+                            }))
+                          }
+                        >
+                          Remove section
+                        </button>
+                      )}
+                    </div>
+                  ))}
                 </div>
-                <button
-                  type="button"
-                  className={styles.secondaryButton}
-                  onClick={() =>
-                    updateProject((current) => ({
-                      ...current,
-                      schedules: {
-                        ...current.schedules,
-                        sectionLocateSegments: [
-                          ...(current.schedules.sectionLocateSegments || []),
-                          createSectionLocateSegment(current.schedules.sectionLabels[0]?.id || ''),
-                        ],
-                      },
-                    }))
-                  }
-                >
-                  Add location
-                </button>
-              </div>
+                {!project.schedules.sectionConstant && (
+                  <button
+                    type="button"
+                    className={styles.secondaryButton}
+                    onClick={() =>
+                      updateProject((current) => {
+                        const nextSection = createSectionLabel(`SEC-${current.schedules.sectionLabels.length + 1}`);
+                        return {
+                          ...current,
+                          schedules: {
+                            ...current.schedules,
+                            sectionLabels: [...current.schedules.sectionLabels, nextSection],
+                          },
+                        };
+                      })
+                    }
+                  >
+                    Add section
+                  </button>
+                )}
+
+                {!project.schedules.sectionConstant && (
+                  <div>
+                    <h4>Locate Sections</h4>
+                    {sectionLocateError && <div className={`${styles.callout} ${styles.warning}`}>{sectionLocateError}</div>}
+                    <div className={styles.tableWrap}>
+                      <table className={styles.table}>
+                        <thead><tr><th>Section Label</th><th>Start Location</th><th>End Location</th><th /></tr></thead>
+                        <tbody>
+                          {(project.schedules.sectionLocateSegments || []).map((locationRow) => {
+                            const start = Number(locationRow.startX);
+                            const end = Number(locationRow.endX);
+                            const hasRangeError = Number.isFinite(start) && Number.isFinite(end) && start >= end;
+                            return (
+                            <tr key={locationRow.id}>
+                              <td>
+                                <select
+                                  value={locationRow.labelId}
+                                  onChange={(event) =>
+                                    updateProject((current) => ({
+                                      ...current,
+                                      schedules: {
+                                        ...current.schedules,
+                                        sectionLocateSegments: (current.schedules.sectionLocateSegments || []).map((entry) =>
+                                          entry.id === locationRow.id ? { ...entry, labelId: event.target.value } : entry,
+                                        ),
+                                      },
+                                    }))
+                                  }
+                                >
+                                  {!project.schedules.sectionLabels.length && <option value="">No labels defined</option>}
+                                  {project.schedules.sectionLabels.map((label) => (
+                                    <option key={label.id} value={label.id}>{label.name || 'Untitled section'}</option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td><input type="text" inputMode="decimal" value={locationRow.startX} onChange={(event) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, sectionLocateSegments: (current.schedules.sectionLocateSegments || []).map((entry) => entry.id === locationRow.id ? { ...entry, startX: event.target.value } : entry) } }))} onBlur={() => runSectionLocateValidation()} /></td>
+                              <td>
+                                <input type="text" inputMode="decimal" value={locationRow.endX} onChange={(event) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, sectionLocateSegments: (current.schedules.sectionLocateSegments || []).map((entry) => entry.id === locationRow.id ? { ...entry, endX: event.target.value } : entry) } }))} onBlur={() => runSectionLocateValidation()} />
+                                {hasRangeError && <div className={styles.muted}>Start location should be less than end location.</div>}
+                              </td>
+                              <td><button type="button" className={styles.secondaryButton} onClick={() => updateProject((current) => ({ ...current, schedules: { ...current.schedules, sectionLocateSegments: current.schedules.sectionLocateSegments.filter((entry) => entry.id !== locationRow.id) } }))}>Remove</button></td>
+                            </tr>
+                          )})}
+                        </tbody>
+                      </table>
+                    </div>
+                    <button
+                      type="button"
+                      className={styles.secondaryButton}
+                      onClick={() =>
+                        updateProject((current) => ({
+                          ...current,
+                          schedules: {
+                            ...current.schedules,
+                            sectionLocateSegments: [
+                              ...(current.schedules.sectionLocateSegments || []),
+                              createSectionLocateSegment(current.schedules.sectionLabels[0]?.id || ''),
+                            ],
+                          },
+                        }))
+                      }
+                    >
+                      Add location
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </section>
 
           <section className={styles.card}>
-            <h3 className={styles.sectionTitle}>Stud Layout</h3>
+            <h3 className={styles.sectionTitle}>Stud Layouts</h3>
             <label className={styles.inlineCheckbox}>
               <input
                 type="checkbox"
@@ -1231,10 +1227,10 @@ export default function CompositeSteelGirderLrfdPage() {
             </label>
 
             {(project.schedules.studLayout?.simpleLayout ?? true) && (
-              <div className={styles.grid3}>
-                <label className={styles.field}># of studs per row<NumericInput value={project.schedules.studLayout?.constants?.studsPerRow} onCommit={(value) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, studLayout: { ...current.schedules.studLayout, constants: { ...current.schedules.studLayout.constants, studsPerRow: value } } } }))} /></label>
-                <label className={styles.field}>Stud Diameter (in)<NumericInput value={project.schedules.studLayout?.constants?.diameter_in} onCommit={(value) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, studLayout: { ...current.schedules.studLayout, constants: { ...current.schedules.studLayout.constants, diameter_in: value } } } }))} /></label>
-                <label className={styles.field}>F<sub>y</sub> (ksi)<NumericInput value={project.schedules.studLayout?.constants?.Fy_ksi} onCommit={(value) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, studLayout: { ...current.schedules.studLayout, constants: { ...current.schedules.studLayout.constants, Fy_ksi: value } } } }))} /></label>
+              <div className={styles.inlineInputsRow}>
+                <label className={styles.inlineField}># of studs per row<NumericInput className={styles.smallInput} value={project.schedules.studLayout?.constants?.studsPerRow} onCommit={(value) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, studLayout: { ...current.schedules.studLayout, constants: { ...current.schedules.studLayout.constants, studsPerRow: value } } } }))} /></label>
+                <label className={styles.inlineField}>Stud dia (in)<NumericInput className={styles.smallInput} value={project.schedules.studLayout?.constants?.diameter_in} onCommit={(value) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, studLayout: { ...current.schedules.studLayout, constants: { ...current.schedules.studLayout.constants, diameter_in: value } } } }))} /></label>
+                <label className={styles.inlineField}>F<sub>y</sub> (ksi)<NumericInput className={styles.smallInput} value={project.schedules.studLayout?.constants?.Fy_ksi} onCommit={(value) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, studLayout: { ...current.schedules.studLayout, constants: { ...current.schedules.studLayout.constants, Fy_ksi: value } } } }))} /></label>
               </div>
             )}
 
@@ -1254,7 +1250,7 @@ export default function CompositeSteelGirderLrfdPage() {
                 </tr>
               ))}
             </tbody></table></div>
-            <PlaceholderSketch title="Stud layout diagram">
+            <PlaceholderSketch title="Stud Layout">
               <svg viewBox="0 0 260 160" width="100%" height="160"><rect width="260" height="160" fill="white" /><rect x="20" y="70" width="220" height="20" fill="#d1d5db" stroke="black" />{[40,65,90,115,140,165,190,215].map((x) => <line key={x} x1={x} y1="56" x2={x} y2="70" stroke="black" strokeWidth="4" />)}<text x="20" y="28" fontSize="12" fontWeight="700">Stud layout template</text></svg>
             </PlaceholderSketch>
           </section>
@@ -1274,7 +1270,6 @@ export default function CompositeSteelGirderLrfdPage() {
             </div>
             <button type="button" className={styles.secondaryButton} onClick={()=>updateProject((current)=>({ ...current, schedules:{...current.schedules, diaphragmLocations:[...current.schedules.diaphragmLocations,createDiaphragm()]}}))}>Add diaphragm</button>
             <div className={styles.svgBlock}>
-              <h4>Steel framing plan</h4>
               <svg viewBox="0 0 900 260" width="100%" height="260" role="img" aria-label="Steel framing plan with girders and diaphragms">
                 <rect x="0" y="0" width="900" height="260" fill="white" />
                 {Array.from({ length: Math.max(1, toNumber(project.geometry.numberOfGirders, 5)) }, (_, i) => {
@@ -1312,6 +1307,7 @@ export default function CompositeSteelGirderLrfdPage() {
                   );
                 })()}
               </svg>
+              <h4 className={styles.diagramLabel}>Plan</h4>
             </div>
           </section>
 
@@ -1424,7 +1420,7 @@ export default function CompositeSteelGirderLrfdPage() {
           </section>
 
           <section className={styles.card}>
-            <h3 className={styles.sectionTitle}>Automatic Dead Loads (DC/DW) – per girder line load scaffold</h3>
+            <h3 className={styles.sectionTitle}>Dead Loads</h3>
             <div className={styles.grid3}>
               <label className={styles.field}>Deck thickness (in)<NumericInput value={project.autoDeadLoad.deckThickness_in} onCommit={(value) => updateProject((current) => ({ ...current, autoDeadLoad: { ...current.autoDeadLoad, deckThickness_in: value } }))} /></label>
               <label className={styles.field}>Haunch thickness (in)<NumericInput value={project.autoDeadLoad.haunchThickness_in} onCommit={(value) => updateProject((current) => ({ ...current, autoDeadLoad: { ...current.autoDeadLoad, haunchThickness_in: value } }))} /></label>
@@ -1444,7 +1440,7 @@ export default function CompositeSteelGirderLrfdPage() {
           </section>
 
           <section className={styles.card}>
-            <h3 className={styles.sectionTitle}>Input from STAAD</h3>
+            <h3 className={styles.sectionTitle}>Live Loads from STAAD</h3>
             <p className={styles.muted}>Enter undistributed and unfactored moments and shears. At Piers, the maximum -M shall be entered and near midspans, the maximum +M shall be entered.</p>
             <div className={styles.tableWrap}>
               <table className={styles.table}>
@@ -1452,8 +1448,8 @@ export default function CompositeSteelGirderLrfdPage() {
                   <tr>
                     <th>Location</th>
                     <th>X global (ft)</th>
-                    {['DC1', 'DC2', 'DW', 'LL_IM'].map((effect) => <th key={`${effect}-m`}><Symbol label="M" sub={effect === 'LL_IM' ? 'LL+IM' : effect} /> (k-ft)</th>)}
-                    {['DC1', 'DC2', 'DW', 'LL_IM'].map((effect) => <th key={`${effect}-v`}><Symbol label="V" sub={effect === 'LL_IM' ? 'LL+IM' : effect} /> (k)</th>)}
+                    {['DC1', 'DC2', 'DW', 'LL_truck', 'LL_tandem'].map((effect) => <th key={`${effect}-m`}><Symbol label="M" sub={effect === 'LL_truck' ? 'truck' : effect === 'LL_tandem' ? 'tandem' : effect} /> (k-ft)</th>)}
+                    {['DC1', 'DC2', 'DW', 'LL_truck', 'LL_tandem'].map((effect) => <th key={`${effect}-v`}><Symbol label="V" sub={effect === 'LL_truck' ? 'truck' : effect === 'LL_tandem' ? 'tandem' : effect} /> (k)</th>)}
                   </tr>
                 </thead>
                 <tbody>
@@ -1500,10 +1496,10 @@ export default function CompositeSteelGirderLrfdPage() {
                           formatDisplay(location.x_global_ft)
                         )}
                       </td>
-                      {['DC1', 'DC2', 'DW', 'LL_IM'].map((effect) => (
+                      {['DC1', 'DC2', 'DW', 'LL_truck', 'LL_tandem'].map((effect) => (
                         <td key={`${location.id}-${effect}-m`}><NumericInput value={project.demandByLocation[location.id]?.[effect]?.M_kft} onCommit={(value) => setDemand(location.id, effect, 'M_kft', value)} /></td>
                       ))}
-                      {['DC1', 'DC2', 'DW', 'LL_IM'].map((effect) => (
+                      {['DC1', 'DC2', 'DW', 'LL_truck', 'LL_tandem'].map((effect) => (
                         <td key={`${location.id}-${effect}-v`}><NumericInput value={project.demandByLocation[location.id]?.[effect]?.V_k} onCommit={(value) => setDemand(location.id, effect, 'V_k', value)} /></td>
                       ))}
                     </tr>
@@ -1513,50 +1509,6 @@ export default function CompositeSteelGirderLrfdPage() {
             </div>
           </section>
 
-          <section className={styles.card}>
-            <h3 className={styles.sectionTitle}>Load Combination Builder (per location)</h3>
-            <div className={styles.tableWrap}>
-              <table className={styles.table}>
-                <thead>
-                  <tr>
-                    <th>Location</th>
-                    <th><Symbol label="M" sub="u" /> Strength I (kip-in)</th>
-                    <th><Symbol label="V" sub="u" /> Strength I (k)</th>
-                    <th><Symbol label="M" sub="s" /> Service II (kip-in)</th>
-                    <th><Symbol label="V" sub="s" /> Service II (k)</th>
-                    <th><Symbol label="M" sub="f" /> Fatigue (kip-in)</th>
-                    <th><Symbol label="V" sub="f" /> Fatigue (k)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {project.derived.locations.map((location) => {
-                    const combo = combos[location.id] || {};
-                    const allowOverride = project.settings.allowOverridingFactoredCombinations;
-                    const getValue = (path, fallback) => project.comboOverridesByLocation[location.id]?.[path] ?? fallback;
-                    const editOverride = (path, value) => updateProject((current) => ({ ...current, comboOverridesByLocation: { ...current.comboOverridesByLocation, [location.id]: { ...current.comboOverridesByLocation[location.id], [path]: value } } }));
-                    return (
-                      <tr key={`${location.id}-combo`}>
-                        <td>{location.name}</td>
-                        {[
-                          ['StrengthI.M_u_kipin', combo.StrengthI?.M_u_kipin ?? null],
-                          ['StrengthI.V_u_k', combo.StrengthI?.V_u_k ?? null],
-                          ['ServiceII.M_s_kipin', combo.ServiceII?.M_s_kipin ?? null],
-                          ['ServiceII.V_s_k', combo.ServiceII?.V_s_k ?? null],
-                          ['Fatigue.M_f_kipin', combo.Fatigue?.M_f_kipin ?? null],
-                          ['Fatigue.V_f_k', combo.Fatigue?.V_f_k ?? null],
-                        ].map(([path, value]) => (
-                          <td key={`${location.id}-${path}`}>
-                            {allowOverride ? <NumericInput value={round(getValue(path, value), 3)} onCommit={(nextValue) => editOverride(path, nextValue)} /> : formatDisplay(value, 3)}
-                          </td>
-                        ))}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            <div className={styles.callout}>Constructability combos are scaffolded in state as DCOnly/WithLL and available for later detailed checks.</div>
-          </section>
         </>
       ) : (
         renderResultsTab(activeTab)
