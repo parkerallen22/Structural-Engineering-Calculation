@@ -952,7 +952,8 @@ export default function CompositeSteelGirderLrfdPage() {
 
   return (
     <div className={styles.page}>
-      <header className={styles.header}>
+      <div className={styles.content}>
+        <header className={styles.header}>
         <div>
           <h1>Composite Steel Girder (LRFD)</h1>
           <p className={styles.muted}>
@@ -1019,9 +1020,9 @@ export default function CompositeSteelGirderLrfdPage() {
             Reset Project
           </button>
         </div>
-      </header>
+        </header>
 
-      <nav className={styles.tabRow}>
+        <nav className={styles.tabRow}>
         {TAB_LABELS.map((tab) => (
           <button
             key={tab}
@@ -1040,7 +1041,7 @@ export default function CompositeSteelGirderLrfdPage() {
         ))}
       </nav>
 
-      {activeTab === 'Inputs' ? (
+        {activeTab === 'Inputs' ? (
         <>
           <section className={styles.card}>
             <h3 className={styles.sectionTitle}>General Input</h3>
@@ -1846,9 +1847,10 @@ export default function CompositeSteelGirderLrfdPage() {
           </section>
 
         </>
-      ) : (
-        renderResultsTab(activeTab)
-      )}
+        ) : (
+          renderResultsTab(activeTab)
+        )}
+      </div>
 
       {settingsOpen && (
         <div className={styles.modalBackdrop}>
