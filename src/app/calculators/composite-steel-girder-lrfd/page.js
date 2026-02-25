@@ -952,7 +952,7 @@ export default function CompositeSteelGirderLrfdPage() {
 
   return (
     <div className={styles.page}>
-      <div className={styles.content}>
+      <div className={`${styles.content} ${styles.innerDebug}`}>
         <header className={styles.header}>
         <div>
           <h1>Composite Steel Girder (LRFD)</h1>
@@ -1216,9 +1216,7 @@ export default function CompositeSteelGirderLrfdPage() {
                 {(() => {
                   const spanLengthsForSketch = project.geometry.spanLengths_ft.map((_, index) => spanLengthForSketch(project.geometry.spanLengths_ft, index));
                   const spanTotal = spanLengthsForSketch.reduce((sum, value) => sum + toNumber(value), 0);
-                  const leftOverhang = toNumber(project.geometry.overhangsVary ? project.geometry.overhangLeft_ft : project.geometry.overhangLength_ft, 0);
-                  const rightOverhang = toNumber(project.geometry.overhangsVary ? project.geometry.overhangRight_ft : project.geometry.overhangLength_ft, 0);
-                  const total = spanTotal + leftOverhang + rightOverhang || 1;
+                  const total = spanTotal || 1;
                   const beamStartX = 40;
                   const beamEndX = 860;
                   const beamBottomY = 145;
@@ -1228,7 +1226,7 @@ export default function CompositeSteelGirderLrfdPage() {
                   const supportTopY = beamBottomY;
                   const supportHalfBase = 6;
                   const supportHeight = 15;
-                  let cursor = beamStartX + (leftOverhang / total) * (beamEndX - beamStartX);
+                  let cursor = beamStartX;
 
                   const supports = [cursor];
                   return project.geometry.spanLengths_ft.map((span, index) => {
@@ -1267,18 +1265,43 @@ export default function CompositeSteelGirderLrfdPage() {
             <div className={styles.svgBlock}>
               <svg viewBox="0 0 820 230" width="100%" height="230" role="img" aria-label="Bridge cross section">
                 <rect width="820" height="230" fill="white" />
-                <rect x="60" y="70" width="700" height="20" fill="#e5e7eb" stroke="black" strokeWidth="1.5" />
-                {Array.from({ length: Math.max(1, toNumber(project.geometry.numberOfGirders, 1)) }, (_, i) => {
-                  const count = Math.max(1, toNumber(project.geometry.numberOfGirders, 1));
-                  const x = count === 1 ? 410 : 80 + (i * 680) / (count - 1);
+                {(() => {
+                  const leftOverhang = toNumber(project.geometry.overhangsVary ? project.geometry.overhangLeft_ft : project.geometry.overhangLength_ft, 0);
+                  const rightOverhang = toNumber(project.geometry.overhangsVary ? project.geometry.overhangRight_ft : project.geometry.overhangLength_ft, 0);
+                  const girderCount = Math.max(1, toNumber(project.geometry.numberOfGirders, 1));
+                  const spacingValues = project.geometry.constantSpacing
+                    ? Array.from({ length: Math.max(0, girderCount - 1) }, () => toNumber(project.geometry.spacing_ft, 0))
+                    : resizeArray(project.geometry.spacingArray_ft, Math.max(0, girderCount - 1), project.geometry.spacing_ft).map((value) => toNumber(value, 0));
+                  const girderWidth = spacingValues.reduce((sum, value) => sum + value, 0);
+                  const totalWidth = Math.max(1, leftOverhang + girderWidth + rightOverhang);
+                  const deckStartX = 60;
+                  const deckWidth = 700;
+                  let cursor = deckStartX + (leftOverhang / totalWidth) * deckWidth;
+                  const girderXs = Array.from({ length: girderCount }, (_, index) => {
+                    if (index === 0) return cursor;
+                    cursor += (spacingValues[index - 1] / totalWidth) * deckWidth;
+                    return cursor;
+                  });
+                  const leftEdge = deckStartX + (leftOverhang / totalWidth) * deckWidth;
+                  const rightEdge = deckStartX + ((leftOverhang + girderWidth) / totalWidth) * deckWidth;
+
                   return (
-                    <g key={`girder-${i}`}>
-                      <rect x={x - 24} y="95" width="48" height="10" fill="#9ca3af" stroke="black" strokeWidth="1.5" />
-                      <rect x={x - 5} y="105" width="10" height="74" fill="#9ca3af" stroke="black" strokeWidth="1.5" />
-                      <rect x={x - 24} y="179" width="48" height="10" fill="#9ca3af" stroke="black" strokeWidth="1.5" />
-                    </g>
+                    <>
+                      <rect x={deckStartX} y="70" width={deckWidth} height="20" fill="#e5e7eb" stroke="black" strokeWidth="1.5" />
+                      <line x1={deckStartX} y1="62" x2={leftEdge} y2="62" stroke="#1f2937" strokeWidth="1" />
+                      <line x1={rightEdge} y1="62" x2={deckStartX + deckWidth} y2="62" stroke="#1f2937" strokeWidth="1" />
+                      <text x={deckStartX + (leftEdge - deckStartX) / 2} y="55" textAnchor="middle" fontSize="12" fill="#1f2937">OH-L {formatDisplay(leftOverhang, 2)} ft</text>
+                      <text x={rightEdge + (deckStartX + deckWidth - rightEdge) / 2} y="55" textAnchor="middle" fontSize="12" fill="#1f2937">OH-R {formatDisplay(rightOverhang, 2)} ft</text>
+                      {girderXs.map((x, i) => (
+                        <g key={`girder-${i}`}>
+                          <rect x={x - 24} y="95" width="48" height="10" fill="#9ca3af" stroke="black" strokeWidth="1.5" />
+                          <rect x={x - 5} y="105" width="10" height="74" fill="#9ca3af" stroke="black" strokeWidth="1.5" />
+                          <rect x={x - 24} y="179" width="48" height="10" fill="#9ca3af" stroke="black" strokeWidth="1.5" />
+                        </g>
+                      ))}
+                    </>
                   );
-                })}
+                })()}
               </svg>
               <h4 className={styles.diagramLabel}>Cross Section</h4>
               <p className={styles.diagramSubLabel}>{formatDisplay(project.geometry.numberOfGirders, 0)} Girders</p>
@@ -1664,7 +1687,7 @@ export default function CompositeSteelGirderLrfdPage() {
                         <h5 className={styles.deckRebarPanelTitle}>{label}</h5>
                         <div className={styles.deckRebarInputsCompact}>
                           <label className={styles.field}>
-                            Bar size (primary)
+                            Bar size
                             <select className={styles.dropdownSelect}
                               value={group.primaryBar}
                               onChange={(event) =>
@@ -1682,7 +1705,7 @@ export default function CompositeSteelGirderLrfdPage() {
                             </select>
                           </label>
                           <label className={styles.field}>
-                            Spacing (primary) (in)
+                            Spacing (in)
                             <input
                               type="text"
                               inputMode="decimal"
@@ -1718,7 +1741,7 @@ export default function CompositeSteelGirderLrfdPage() {
                           <>
                             <div className={styles.deckRebarInputsCompact}>
                               <label className={styles.field}>
-                                Bar size (secondary)
+                                Bar size (alternate)
                                 <select className={styles.dropdownSelect}
                                   value={group.secondaryBar || ''}
                                   onChange={(event) =>
@@ -1774,8 +1797,8 @@ export default function CompositeSteelGirderLrfdPage() {
           <section className={styles.card}>
             <h3 className={styles.sectionTitle}>Live Loads from STAAD</h3>
             <p className={styles.muted}>Enter undistributed and unfactored moments and shears. At Piers, the maximum -M shall be entered and near midspans, the maximum +M shall be entered.</p>
-            <div className={styles.tableWrap}>
-              <table className={`${styles.table} ${styles.narrowTable}`}>
+            <div className="w-full overflow-x-auto">
+              <table className={`${styles.table} ${styles.narrowTable} ${styles.liveLoadsTable} w-full table-fixed`}>
                 <thead>
                   <tr>
                     <th>Location</th>
@@ -1808,7 +1831,7 @@ export default function CompositeSteelGirderLrfdPage() {
                               }
                               disabled={project.geometry.spanPoints[location.spanIndex]?.momentAtMid}
                             />
-                            <div className={styles.compactToggleRow}>
+                            <div className={`${styles.compactToggleRow} ${styles.xGlobalCellToggle}`}>
                               <span>midspan</span>
                               <ToggleChoice
                                 value={Boolean(project.geometry.spanPoints[location.spanIndex]?.momentAtMid)}
