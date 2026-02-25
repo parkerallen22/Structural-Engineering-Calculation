@@ -354,6 +354,8 @@
   position: relative;
   display: inline-flex;
   align-items: center;
+  isolation: isolate;
+  z-index: 5;
 }
 
 .infoIcon {
@@ -378,20 +380,30 @@
 }
 
 .infoPopover {
-  position: absolute;
-  top: calc(100% + 0.4rem);
-  left: 50%;
-  transform: translateX(-50%);
-  width: min(240px, 65vw);
-  padding: 0.45rem 0.55rem;
-  border-radius: 10px;
-  border: 1px solid #dbe2ea;
+  position: fixed;
+  width: min(260px, calc(100vw - 16px));
+  box-sizing: border-box;
+  z-index: 5000;
+}
+
+.infoPopoverContent {
+  overflow-wrap: anywhere;
   background: #fff;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 8px 10px;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.14);
   color: #334155;
-  font-size: 0.78rem;
+  font-size: 12px;
   line-height: 1.35;
-  z-index: 10;
+}
+
+.infoPopoverAbove {
+  transform-origin: bottom center;
+}
+
+.infoPopoverBelow {
+  transform-origin: top center;
 }
 
 .expandedNote {

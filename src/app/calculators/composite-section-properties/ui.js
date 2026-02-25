@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 import styles from './page.module.css';
 
@@ -254,7 +255,10 @@ export function LabelWithInfo({ label, info }) {
 
 export function InfoTooltip({ text }) {
   const [open, setOpen] = useState(false);
+  const [renderBelow, setRenderBelow] = useState(false);
+  const [popoverPosition, setPopoverPosition] = useState({ left: 0, top: 0 });
   const containerRef = useRef(null);
+  const popoverRef = useRef(null);
   const tooltipId = useId();
 
   useEffect(() => {
@@ -283,12 +287,57 @@ export function InfoTooltip({ text }) {
     };
   }, [open]);
 
+  useLayoutEffect(() => {
+    if (!open || !containerRef.current || !popoverRef.current) {
+      return undefined;
+    }
+
+    const sideOffset = 8;
+
+    const updatePopoverPlacement = () => {
+      if (!containerRef.current || !popoverRef.current) {
+        return;
+      }
+
+      const triggerRect = containerRef.current.getBoundingClientRect();
+      const popoverRect = popoverRef.current.getBoundingClientRect();
+      const shouldRenderBelow = triggerRect.top - popoverRect.height - sideOffset < 0;
+
+      const rawLeft = triggerRect.left + triggerRect.width / 2 - popoverRect.width / 2;
+      const clampedLeft = Math.min(
+        Math.max(rawLeft, sideOffset),
+        window.innerWidth - popoverRect.width - sideOffset,
+      );
+      const top = shouldRenderBelow
+        ? triggerRect.bottom + sideOffset
+        : triggerRect.top - popoverRect.height - sideOffset;
+
+      setRenderBelow(shouldRenderBelow);
+      setPopoverPosition({ left: clampedLeft, top: Math.max(sideOffset, top) });
+    };
+
+    updatePopoverPlacement();
+    window.addEventListener('resize', updatePopoverPlacement);
+    window.addEventListener('scroll', updatePopoverPlacement, true);
+
+    return () => {
+      window.removeEventListener('resize', updatePopoverPlacement);
+      window.removeEventListener('scroll', updatePopoverPlacement, true);
+    };
+  }, [open, text]);
+
   return (
     <span
       className={styles.infoTooltipWrap}
       ref={containerRef}
       onMouseEnter={() => setOpen(true)}
       onMouseLeave={() => setOpen(false)}
+      onFocusCapture={() => setOpen(true)}
+      onBlurCapture={(event) => {
+        if (!containerRef.current?.contains(event.relatedTarget)) {
+          setOpen(false);
+        }
+      }}
     >
       <button
         type="button"
@@ -300,11 +349,22 @@ export function InfoTooltip({ text }) {
       >
         i
       </button>
-      {open ? (
-        <span role="tooltip" id={tooltipId} className={styles.infoPopover}>
-          {text}
-        </span>
-      ) : null}
+      {open
+        ? createPortal(
+          <div
+            role="tooltip"
+            id={tooltipId}
+            ref={popoverRef}
+            className={`${styles.infoPopover} ${renderBelow ? styles.infoPopoverBelow : styles.infoPopoverAbove}`}
+            style={{ left: `${popoverPosition.left}px`, top: `${popoverPosition.top}px` }}
+          >
+            {/* Self-check: tooltip text could appear detached from the popup due to local positioning and clipping.
+                Fixed with a portal-mounted popup content container and consistent hover/focus behavior. */}
+            <div className={styles.infoPopoverContent}>{text}</div>
+          </div>,
+          document.body,
+        )
+        : null}
     </span>
   );
 }
