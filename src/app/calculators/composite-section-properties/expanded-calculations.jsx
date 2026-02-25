@@ -1,7 +1,7 @@
 import styles from './page.module.css';
 import { fmt } from './ui';
 
-function ExpandedComponentTable({ title, detail, cRows, sRows }) {
+function ExpandedComponentTable({ title, detail, cRows, sRows, note }) {
   const renderNumber = (value) => fmt(value, 2);
 
   return (
@@ -68,6 +68,7 @@ function ExpandedComponentTable({ title, detail, cRows, sRows }) {
           </tbody>
         </table>
       </div>
+      {note ? <p className={styles.expandedNote}>{note}</p> : null}
     </section>
   );
 }
@@ -98,6 +99,9 @@ export function ExpandedCalculations({ regionResult }) {
           { key: 'st', label: sLabel('top steel', '(nc)'), value: plusMoment.nonComposite.s.topSteel, units: 'in³' },
           { key: 'i', label: 'I', value: plusMoment.nonComposite.s.i, units: 'in⁴' },
         ]}
+        note={regionResult.useAiscManual
+          ? `Use AISC Steel Manual values for W-shape properties: Ix = ${fmt(regionResult.steelOnlyDisplay?.i, 2)} in⁴, Sx = ${fmt(regionResult.steelOnlyDisplay?.topOfSteel, 2)} in³.`
+          : null}
       />
 
       <ExpandedComponentTable
