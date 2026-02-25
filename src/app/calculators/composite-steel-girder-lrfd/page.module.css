@@ -288,7 +288,12 @@
 
 .diaphragmTable {
   width: 100%;
-  table-layout: fixed;
+  table-layout: auto;
+}
+
+.diaphragmTableWrap {
+  max-width: 320px;
+  margin: 0 auto 0.8rem;
 }
 
 .narrowTable {
@@ -477,16 +482,28 @@
   gap: 0.45rem;
 }
 
+.liveLoadsTable {
+  width: max-content;
+  min-width: 100%;
+  table-layout: auto;
+}
+
 .liveLoadsTable tbody tr {
-  height: 40px;
+  height: 44px;
 }
 
 .liveLoadsTable td {
   vertical-align: middle;
 }
 
+.liveLoadsTable td input {
+  width: 100%;
+  min-width: 74px;
+  box-sizing: border-box;
+}
+
 .innerDebug > * {
-  outline: 1px dashed rgba(37, 99, 235, 0.35);
+  outline: 1px solid rgba(37, 99, 235, 0.35);
   outline-offset: -1px;
 }
 
@@ -500,6 +517,19 @@
 .utilityButton small {
   font-size: 0.68rem;
   opacity: 0.8;
+}
+
+.rangeErrorText {
+  color: #4b5563;
+  margin-top: 0.2rem;
+  font-size: 0.78rem;
+  line-height: 1.25;
+  white-space: normal;
+}
+
+.locateSectionsTable th:nth-child(3),
+.locateSectionsTable td:nth-child(3) {
+  min-width: 210px;
 }
 
 
