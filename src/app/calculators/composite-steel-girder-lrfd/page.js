@@ -1290,8 +1290,6 @@ export default function CompositeSteelGirderLrfdPage() {
                       <rect x={deckStartX} y="70" width={deckWidth} height="20" fill="#e5e7eb" stroke="black" strokeWidth="1.5" />
                       <line x1={deckStartX} y1="62" x2={leftEdge} y2="62" stroke="#1f2937" strokeWidth="1" />
                       <line x1={rightEdge} y1="62" x2={deckStartX + deckWidth} y2="62" stroke="#1f2937" strokeWidth="1" />
-                      <text x={deckStartX + (leftEdge - deckStartX) / 2} y="55" textAnchor="middle" fontSize="12" fill="#1f2937">OH-L {formatDisplay(leftOverhang, 2)} ft</text>
-                      <text x={rightEdge + (deckStartX + deckWidth - rightEdge) / 2} y="55" textAnchor="middle" fontSize="12" fill="#1f2937">OH-R {formatDisplay(rightOverhang, 2)} ft</text>
                       {girderXs.map((x, i) => (
                         <g key={`girder-${i}`}>
                           <rect x={x - 24} y="95" width="48" height="10" fill="#9ca3af" stroke="black" strokeWidth="1.5" />
@@ -1432,7 +1430,7 @@ export default function CompositeSteelGirderLrfdPage() {
                     <h4>Locate Sections</h4>
                     {sectionLocateError && <div className={`${styles.callout} ${styles.warning}`}>{sectionLocateError}</div>}
                     <div className={styles.tableWrap}>
-                      <table className={`${styles.table} ${styles.compactTable}`}>
+                      <table className={`${styles.table} ${styles.compactTable} ${styles.locateSectionsTable}`}>
                         <thead><tr><th>Section Label</th><th>Start Location</th><th>End Location</th><th /></tr></thead>
                         <tbody>
                           {(project.schedules.sectionLocateSegments || []).map((locationRow) => {
@@ -1466,7 +1464,7 @@ export default function CompositeSteelGirderLrfdPage() {
                               <td><input type="text" inputMode="decimal" value={locationRow.startX} onChange={(event) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, sectionLocateSegments: (current.schedules.sectionLocateSegments || []).map((entry) => entry.id === locationRow.id ? { ...entry, startX: event.target.value } : entry) } }))} onBlur={() => runSectionLocateValidation()} /></td>
                               <td>
                                 <input type="text" inputMode="decimal" value={locationRow.endX} onChange={(event) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, sectionLocateSegments: (current.schedules.sectionLocateSegments || []).map((entry) => entry.id === locationRow.id ? { ...entry, endX: event.target.value } : entry) } }))} onBlur={() => runSectionLocateValidation()} />
-                                {hasRangeError && <div className={styles.muted}>Start location should be less than end location.</div>}
+                                {hasRangeError && <div className={styles.rangeErrorText}>Start location should be less than end location.</div>}
                               </td>
                               <td><button type="button" className={styles.secondaryButton} onClick={() => updateProject((current) => ({ ...current, schedules: { ...current.schedules, sectionLocateSegments: current.schedules.sectionLocateSegments.filter((entry) => entry.id !== locationRow.id) } }))}>Remove</button></td>
                             </tr>
@@ -1606,7 +1604,7 @@ export default function CompositeSteelGirderLrfdPage() {
               <button type="button" className={styles.secondaryButton} onClick={() => updateProject((current) => ({ ...current, schedules: { ...current.schedules, diaphragmLocations: [...current.schedules.diaphragmLocations, createDiaphragm()] } }))}>Add</button>
               <button type="button" className={styles.secondaryButton} onClick={() => updateProject((current) => ({ ...current, schedules: { ...current.schedules, diaphragmLocations: current.schedules.diaphragmLocations.length > 1 ? current.schedules.diaphragmLocations.slice(0, -1) : current.schedules.diaphragmLocations } }))}>Remove</button>
             </div>
-            <div className={styles.tableWrap}>
+            <div className={`${styles.tableWrap} ${styles.diaphragmTableWrap}`}>
               <table className={`${styles.table} ${styles.diaphragmTable}`}><thead><tr><th>Diaphragm</th><th>Location (ft) <span className={styles.infoIcon}>i<span className={styles.tooltipBox}>Distance from Abutment 1</span></span></th></tr></thead><tbody>
                 {project.schedules.diaphragmLocations.map((row, index) => (
                   <tr key={row.id}>
@@ -1798,7 +1796,7 @@ export default function CompositeSteelGirderLrfdPage() {
             <h3 className={styles.sectionTitle}>Live Loads from STAAD</h3>
             <p className={styles.muted}>Enter undistributed and unfactored moments and shears. At Piers, the maximum -M shall be entered and near midspans, the maximum +M shall be entered.</p>
             <div className="w-full overflow-x-auto">
-              <table className={`${styles.table} ${styles.narrowTable} ${styles.liveLoadsTable} w-full table-fixed`}>
+              <table className={`${styles.table} ${styles.narrowTable} ${styles.liveLoadsTable}`}>
                 <thead>
                   <tr>
                     <th>Location</th>
