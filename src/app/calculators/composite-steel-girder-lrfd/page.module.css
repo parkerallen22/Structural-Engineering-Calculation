@@ -116,15 +116,8 @@
   column-gap: 0.35rem;
 }
 
-.grid3.compactInputGrid,
-.grid4.compactInputGrid {
-  grid-template-columns: repeat(auto-fit, minmax(145px, max-content));
-  justify-content: start;
-}
-
 .compactInputGrid .field {
-  width: 100%;
-  max-width: 210px;
+  width: fit-content;
 }
 
 .field {
@@ -394,8 +387,6 @@
   position: relative;
   display: inline-flex;
   align-items: center;
-  isolation: isolate;
-  z-index: 5;
 }
 
 .infoIcon {
@@ -420,7 +411,9 @@
 }
 
 .infoPopover {
-  position: fixed;
+  position: absolute;
+  left: 50%;
+  transform: translateX(calc(-50% + var(--tooltip-x-nudge, 0px)));
   width: min(220px, calc(100vw - 2rem));
   padding: 0.45rem 0.55rem;
   border-radius: 10px;
@@ -430,15 +423,15 @@
   color: #334155;
   font-size: 0.78rem;
   line-height: 1.35;
-  z-index: 5000;
+  z-index: 10;
 }
 
 .infoPopoverAbove {
-  transform-origin: bottom center;
+  bottom: calc(100% + 0.35rem);
 }
 
 .infoPopoverBelow {
-  transform-origin: top center;
+  top: calc(100% + 0.35rem);
 }
 
 .diagramSubLabel {
@@ -458,7 +451,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.6rem;
-  align-items: flex-start;
+  align-items: flex-end;
   border: 1px solid #dbe4ef;
   border-radius: 12px;
   padding: 0.7rem;
@@ -512,15 +505,8 @@
 
 .deckRebarPairGrid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
   gap: 0.75rem;
-  align-items: start;
-}
-
-@media (max-width: 760px) {
-  .deckRebarPairGrid {
-    grid-template-columns: 1fr;
-  }
 }
 
 .deckRebarPanel {
@@ -530,7 +516,6 @@
   padding: 0.6rem;
   display: grid;
   gap: 0.45rem;
-  align-content: start;
 }
 
 .deckRebarPanelTitle {
@@ -541,9 +526,8 @@
 
 .deckRebarInputsCompact {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 145px));
+  grid-template-columns: repeat(auto-fit, minmax(145px, max-content));
   gap: 0.45rem;
-  align-items: start;
 }
 
 .liveLoadsTable {
@@ -562,12 +546,7 @@
 
 .liveLoadsTable th,
 .liveLoadsTable td {
-  width: auto;
-}
-
-.liveLoadsTable th:first-child,
-.liveLoadsTable td:first-child {
-  min-width: 112px;
+  width: 1%;
 }
 
 .liveLoadsTable td input {
@@ -611,4 +590,70 @@
   .content {
     padding-inline: 0;
   }
+}
+
+/* Conflict-safe overrides: keep changes grouped at file end to minimize merge overlap. */
+.grid3.compactInputGrid,
+.grid4.compactInputGrid {
+  grid-template-columns: repeat(auto-fit, minmax(145px, max-content));
+  justify-content: start;
+}
+
+.compactInputGrid .field {
+  width: 100%;
+  max-width: 210px;
+}
+
+.infoTooltipWrap {
+  isolation: isolate;
+  z-index: 5;
+}
+
+.infoPopover {
+  position: fixed;
+  left: auto;
+  transform: none;
+  z-index: 5000;
+}
+
+.infoPopoverAbove {
+  transform-origin: bottom center;
+}
+
+.infoPopoverBelow {
+  transform-origin: top center;
+}
+
+.sectionRow {
+  align-items: flex-start;
+}
+
+.deckRebarPairGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+}
+
+@media (max-width: 760px) {
+  .deckRebarPairGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.deckRebarPanel {
+  align-content: start;
+}
+
+.deckRebarInputsCompact {
+  grid-template-columns: repeat(2, minmax(0, 145px));
+  align-items: start;
+}
+
+.liveLoadsTable th,
+.liveLoadsTable td {
+  width: auto;
+}
+
+.liveLoadsTable th:first-child,
+.liveLoadsTable td:first-child {
+  min-width: 112px;
 }
