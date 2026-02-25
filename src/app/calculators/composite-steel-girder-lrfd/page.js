@@ -1264,8 +1264,6 @@ export default function CompositeSteelGirderLrfdPage() {
             </PlaceholderSketch>
 
             <div className={styles.svgBlock}>
-              <h4 className={styles.diagramLabel}>Cross Section</h4>
-              <p className={styles.diagramSubLabel}>{formatDisplay(project.geometry.numberOfGirders, 0)} Girders</p>
               <svg viewBox="0 0 820 230" width="100%" height="230" role="img" aria-label="Bridge cross section">
                 <rect width="820" height="230" fill="white" />
                 <rect x="60" y="70" width="700" height="20" fill="#e5e7eb" stroke="black" strokeWidth="1.5" />
@@ -1281,6 +1279,8 @@ export default function CompositeSteelGirderLrfdPage() {
                   );
                 })}
               </svg>
+              <h4 className={styles.diagramLabel}>Cross Section</h4>
+              <p className={styles.diagramSubLabel}>{formatDisplay(project.geometry.numberOfGirders, 0)} Girders</p>
             </div>
           </section>
 
@@ -1522,15 +1522,16 @@ export default function CompositeSteelGirderLrfdPage() {
             </tbody></table></div>
             <div className={styles.studLayoutSketch}>
             <PlaceholderSketch title="Stud Layout">
-              <svg viewBox="0 0 340 190" width="100%" height="190">
-                <rect width="340" height="190" fill="white" />
+              <svg viewBox="0 0 340 250" width="100%" height="250">
+                <rect width="340" height="250" fill="white" />
                 <rect x="86" y="68" width="168" height="14" fill="#9ca3af" stroke="black" strokeWidth="1.5" />
-                <rect x="166" y="82" width="8" height="64" fill="#9ca3af" stroke="black" strokeWidth="1.5" />
-                <rect x="86" y="146" width="168" height="14" fill="#9ca3af" stroke="black" strokeWidth="1.5" />
+                <rect x="166" y="82" width="8" height="124" fill="#9ca3af" stroke="black" strokeWidth="1.5" />
+                <rect x="86" y="206" width="168" height="14" fill="#9ca3af" stroke="black" strokeWidth="1.5" />
                 {(() => {
                   const studCount = Math.max(0, Math.floor(toNumber(project.schedules.studLayout?.constants?.studsPerRow, 0)));
                   const spacing = studCount <= 1 ? 0 : 140 / (studCount - 1);
-                  const firstX = 160 - (spacing * (studCount - 1)) / 2;
+                  const flangeCenterX = 170;
+                  const firstX = flangeCenterX - (spacing * (studCount - 1)) / 2;
                   return Array.from({ length: studCount }, (_, idx) => {
                     const x = firstX + idx * spacing;
                     return (
@@ -1582,7 +1583,7 @@ export default function CompositeSteelGirderLrfdPage() {
               <button type="button" className={styles.secondaryButton} onClick={() => updateProject((current) => ({ ...current, schedules: { ...current.schedules, diaphragmLocations: current.schedules.diaphragmLocations.length > 1 ? current.schedules.diaphragmLocations.slice(0, -1) : current.schedules.diaphragmLocations } }))}>Remove</button>
             </div>
             <div className={styles.tableWrap}>
-              <table className={`${styles.table} ${styles.compactTable}`}><thead><tr><th>Diaphragm</th><th>Location (ft) <span className={styles.infoIcon}>i<span className={styles.tooltipBox}>Distance from Abutment 1</span></span></th></tr></thead><tbody>
+              <table className={`${styles.table} ${styles.diaphragmTable}`}><thead><tr><th>Diaphragm</th><th>Location (ft) <span className={styles.infoIcon}>i<span className={styles.tooltipBox}>Distance from Abutment 1</span></span></th></tr></thead><tbody>
                 {project.schedules.diaphragmLocations.map((row, index) => (
                   <tr key={row.id}>
                     <td>D{index + 1}</td>
@@ -1648,99 +1649,104 @@ export default function CompositeSteelGirderLrfdPage() {
           <section className={styles.card}>
             <h3 className={styles.sectionTitle}>Deck Reinforcement</h3>
             {[
-              ['longitudinalTop', 'Longitudinal (Top)'],
-              ['longitudinalBottom', 'Longitudinal (Bottom)'],
-              ['transverseTop', 'Transverse (Top)'],
-              ['transverseBottom', 'Transverse (Bottom)'],
-            ].map(([groupKey, title]) => {
-              const group = project.deckRebar[groupKey];
-              const showSecondaryError = deckRebarSecondaryErrors[groupKey];
-              return (
-                <div className={styles.svgBlock} key={groupKey}>
-                  <h4>{title}</h4>
-                  <div className={styles.grid4}>
-                    <label className={styles.field}>
-                      Bar size (primary)
-                      <select className={styles.dropdownSelect}
-                        value={group.primaryBar}
-                        onChange={(event) =>
-                          updateProject((current) => ({
-                            ...current,
-                            deckRebar: {
-                              ...current.deckRebar,
-                              [groupKey]: { ...current.deckRebar[groupKey], primaryBar: event.target.value },
-                            },
-                          }))
-                        }
-                      >
-                        <option value="">Select bar size</option>
-                        {REBAR_BAR_OPTIONS.filter(Boolean).map((option) => <option key={`${groupKey}-primary-${option}`} value={option}>{option}</option>)}
-                      </select>
-                    </label>
-                    <label className={styles.field}>
-                      Spacing (primary) (in)
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        value={group.spacing}
-                        onChange={(event) =>
-                          updateProject((current) => ({
-                            ...current,
-                            deckRebar: {
-                              ...current.deckRebar,
-                              [groupKey]: { ...current.deckRebar[groupKey], spacing: event.target.value },
-                            },
-                          }))
-                        }
-                      />
-                    </label>
-                  </div>
-                  <div className={`${styles.inlineInputsRow} ${styles.buttonRowSpacing}`}>
-                    <span>Alternating bars</span>
-                    <ToggleChoice
-                      value={group.alternating}
-                      onChange={(nextChecked) =>
-                        updateProject((current) => ({
-                          ...current,
-                          deckRebar: {
-                            ...current.deckRebar,
-                            [groupKey]: { ...current.deckRebar[groupKey], alternating: nextChecked },
-                          },
-                        }))
-                      }
-                    />
-                  </div>
-                  {group.alternating && (
-                    <>
-                      <div className={styles.grid4}>
-                        <label className={styles.field}>
-                          Bar size (secondary)
-                          <select className={styles.dropdownSelect}
-                            value={group.secondaryBar || ''}
-                            onChange={(event) =>
+              { key: 'longitudinal', title: 'Longitudinal reinforcement', groups: [['longitudinalTop', 'Top'], ['longitudinalBottom', 'Bottom']] },
+              { key: 'transverse', title: 'Transverse reinforcement', groups: [['transverseTop', 'Top'], ['transverseBottom', 'Bottom']] },
+            ].map((category) => (
+              <div className={styles.svgBlock} key={category.key}>
+                <h4>{category.title}</h4>
+                <div className={styles.deckRebarPairGrid}>
+                  {category.groups.map(([groupKey, label]) => {
+                    const group = project.deckRebar[groupKey];
+                    const showSecondaryError = deckRebarSecondaryErrors[groupKey];
+                    return (
+                      <div key={groupKey} className={styles.deckRebarPanel}>
+                        <h5 className={styles.deckRebarPanelTitle}>{label}</h5>
+                        <div className={styles.deckRebarInputsCompact}>
+                          <label className={styles.field}>
+                            Bar size (primary)
+                            <select className={styles.dropdownSelect}
+                              value={group.primaryBar}
+                              onChange={(event) =>
+                                updateProject((current) => ({
+                                  ...current,
+                                  deckRebar: {
+                                    ...current.deckRebar,
+                                    [groupKey]: { ...current.deckRebar[groupKey], primaryBar: event.target.value },
+                                  },
+                                }))
+                              }
+                            >
+                              <option value="">Select bar size</option>
+                              {REBAR_BAR_OPTIONS.filter(Boolean).map((option) => <option key={`${groupKey}-primary-${option}`} value={option}>{option}</option>)}
+                            </select>
+                          </label>
+                          <label className={styles.field}>
+                            Spacing (primary) (in)
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={group.spacing}
+                              onChange={(event) =>
+                                updateProject((current) => ({
+                                  ...current,
+                                  deckRebar: {
+                                    ...current.deckRebar,
+                                    [groupKey]: { ...current.deckRebar[groupKey], spacing: event.target.value },
+                                  },
+                                }))
+                              }
+                            />
+                          </label>
+                        </div>
+                        <div className={styles.inlineInputsRow}>
+                          <span>Alternating bars</span>
+                          <ToggleChoice
+                            value={group.alternating}
+                            onChange={(nextChecked) =>
                               updateProject((current) => ({
                                 ...current,
                                 deckRebar: {
                                   ...current.deckRebar,
-                                  [groupKey]: { ...current.deckRebar[groupKey], secondaryBar: event.target.value },
+                                  [groupKey]: { ...current.deckRebar[groupKey], alternating: nextChecked },
                                 },
                               }))
                             }
-                          >
-                            <option value="">Select bar size</option>
-                            {REBAR_BAR_OPTIONS.filter(Boolean).map((option) => <option key={`${groupKey}-secondary-${option}`} value={option}>{option}</option>)}
-                          </select>
-                        </label>
+                          />
+                        </div>
+                        {group.alternating && (
+                          <>
+                            <div className={styles.deckRebarInputsCompact}>
+                              <label className={styles.field}>
+                                Bar size (secondary)
+                                <select className={styles.dropdownSelect}
+                                  value={group.secondaryBar || ''}
+                                  onChange={(event) =>
+                                    updateProject((current) => ({
+                                      ...current,
+                                      deckRebar: {
+                                        ...current.deckRebar,
+                                        [groupKey]: { ...current.deckRebar[groupKey], secondaryBar: event.target.value },
+                                      },
+                                    }))
+                                  }
+                                >
+                                  <option value="">Select bar size</option>
+                                  {REBAR_BAR_OPTIONS.filter(Boolean).map((option) => <option key={`${groupKey}-secondary-${option}`} value={option}>{option}</option>)}
+                                </select>
+                              </label>
+                            </div>
+                            <div className={styles.muted}>
+                              {`${group.primaryBar || '#5'} @ ${group.spacing || '12'} in alternating with ${group.secondaryBar || '#6'} @ ${group.spacing || '12'} in → bar every ${group.spacing ? round(toNumber(group.spacing) / 2, 3) : '6'} in, alternating sizes`}
+                            </div>
+                            {showSecondaryError && <div className={styles.inlineError}>Secondary bar size is required when alternating bars is enabled.</div>}
+                          </>
+                        )}
                       </div>
-                      <div className={styles.muted}>
-                        {`${group.primaryBar || '#5'} @ ${group.spacing || '12'} in alternating with ${group.secondaryBar || '#6'} @ ${group.spacing || '12'} in → bar every ${group.spacing ? round(toNumber(group.spacing) / 2, 3) : '6'} in, alternating sizes`}
-                      </div>
-                      {showSecondaryError && <div className={styles.inlineError}>Secondary bar size is required when alternating bars is enabled.</div>}
-                    </>
-                  )}
+                    );
+                  })}
                 </div>
-              );
-            })}
+              </div>
+            ))}
           </section>
 
           <section className={styles.card}>
@@ -1772,7 +1778,7 @@ export default function CompositeSteelGirderLrfdPage() {
                 <thead>
                   <tr>
                     <th>Location</th>
-                    <th>X global (ft)</th>
+                    <th className={styles.xGlobalCell}>X global (ft)</th>
                     {['DC1', 'DC2', 'DW', 'LL_truck', 'LL_tandem'].map((effect) => <th key={`${effect}-m`}><Symbol label="M" sub={effect === 'LL_truck' ? 'truck' : effect === 'LL_tandem' ? 'tandem' : effect} /> (k-ft)</th>)}
                     {['DC1', 'DC2', 'DW', 'LL_truck', 'LL_tandem'].map((effect) => <th key={`${effect}-v`}><Symbol label="V" sub={effect === 'LL_truck' ? 'truck' : effect === 'LL_tandem' ? 'tandem' : effect} /> (k)</th>)}
                   </tr>
