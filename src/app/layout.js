@@ -15,10 +15,10 @@ export default function RootLayout({ children }) {
         <div className="min-h-screen w-full bg-app overflow-x-hidden">
           <SiteHeader />
 
-          <main className="mx-auto w-full max-w-[1200px] px-6 box-border mainContent">{children}</main>
+          <main className="siteContainer mainContent">{children}</main>
 
           <footer className="siteFooter">
-            <div className="mx-auto w-full max-w-[1200px] px-6 box-border footerInner">
+            <div className="siteContainer footerInner">
             <p>© {year} Structural Engineering Calculators</p>
             <p>Engineering judgment required. Verify results.</p>
             </div>

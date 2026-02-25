@@ -56,7 +56,7 @@ export default function SiteHeader() {
 
   return (
     <header className="siteHeader">
-      <div className="mx-auto w-full max-w-[1200px] px-6 box-border navInner">
+      <div className="siteContainer navInner">
         <Link href="/" className="brand">
           Structural Engineering Calculators
         </Link>
