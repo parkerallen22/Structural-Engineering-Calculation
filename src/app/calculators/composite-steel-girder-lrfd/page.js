@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import styles from './page.module.css';
 
 const CALCULATOR_ID = 'composite-steel-girder-lrfd';
@@ -213,12 +213,51 @@ function round(value, digits = 3) {
   return Number(numeric.toFixed(digits));
 }
 
+function cloneFallbackValue(fallbackValue) {
+  if (typeof fallbackValue === 'function') {
+    return fallbackValue();
+  }
+  if (Array.isArray(fallbackValue)) {
+    return [...fallbackValue];
+  }
+  if (fallbackValue && typeof fallbackValue === 'object') {
+    if (typeof structuredClone === 'function') {
+      return structuredClone(fallbackValue);
+    }
+    return { ...fallbackValue };
+  }
+  return fallbackValue;
+}
+
 function resizeArray(source, targetLength, fallbackValue) {
   const next = [...source];
   while (next.length < targetLength) {
-    next.push(fallbackValue);
+    next.push(cloneFallbackValue(fallbackValue));
   }
   return next.slice(0, targetLength);
+}
+
+function randomInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function randomDecimal(min, max, digits = 1) {
+  const value = min + Math.random() * (max - min);
+  return round(value, digits);
+}
+
+function spanLengthForSketch(spanLengths, index) {
+  const current = toNullableNumber(spanLengths[index]);
+  if (current !== null && current > 0) {
+    return current;
+  }
+  for (let i = index - 1; i >= 0; i -= 1) {
+    const prior = toNullableNumber(spanLengths[i]);
+    if (prior !== null && prior > 0) {
+      return prior;
+    }
+  }
+  return 1;
 }
 
 function normalizeDeckRebar(input = {}) {
@@ -632,6 +671,94 @@ export default function CompositeSteelGirderLrfdPage() {
   const [activeTab, setActiveTab] = useState(TAB_LABELS[0]);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [sectionLocateError, setSectionLocateError] = useState('');
+  const diaphragmValueMemoryRef = useRef([]);
+
+  const totalBridgeLength = useMemo(
+    () => project.geometry.spanLengths_ft.reduce((sum, value) => sum + toNumber(value), 0),
+    [project.geometry.spanLengths_ft],
+  );
+
+  const buildRandomProject = (current) => {
+    const numberOfSpans = randomInt(2, 6);
+    const baseSpan = randomDecimal(20, 42, 1);
+    const spanLengths = Array.from({ length: numberOfSpans }, (_, i) => {
+      if (i === 0) {
+        return baseSpan;
+      }
+      return Math.max(15, Math.min(50, round(baseSpan + randomDecimal(-8, 8, 1), 1)));
+    });
+    const avgSpan = spanLengths.reduce((sum, value) => sum + value, 0) / spanLengths.length;
+    const overhangBase = round(avgSpan * randomDecimal(0.1, 0.2, 2), 1);
+    const numberOfGirders = randomInt(4, 12);
+    const spacing_ft = randomDecimal(4, 10, 1);
+    const depth = randomDecimal(24, 48, 1);
+    const topFlange = round(depth * randomDecimal(0.3, 0.45, 2), 1);
+    const botFlange = round(depth * randomDecimal(0.3, 0.45, 2), 1);
+    const web = round(depth * randomDecimal(0.035, 0.06, 3), 2);
+    const totalLength = spanLengths.reduce((sum, value) => sum + value, 0);
+    const diaphragmCount = randomInt(2, 8);
+    const diaphragms = Array.from({ length: diaphragmCount }, (_, index) => {
+      const x = round(((index + 1) / (diaphragmCount + 1)) * totalLength, 1);
+      return { id: crypto.randomUUID(), x_ft: x };
+    });
+
+    return {
+      ...current,
+      geometry: {
+        ...current.geometry,
+        numberOfSpans,
+        spanLengths_ft: spanLengths,
+        spanPoints: spanLengths.map((length) => ({ momentAtMid: true, xPrime_ft: round(length / 2, 3) })),
+        overhangsVary: false,
+        overhangLength_ft: overhangBase,
+        overhangLeft_ft: overhangBase,
+        overhangRight_ft: overhangBase,
+        numberOfGirders,
+        constantSpacing: true,
+        spacing_ft,
+        spacingArray_ft: Array.from({ length: Math.max(0, numberOfGirders - 1) }, () => spacing_ft),
+        skew_deg: randomDecimal(0, 25, 1),
+      },
+      schedules: {
+        ...current.schedules,
+        sectionLabels: current.schedules.sectionLabels.map((section, index) =>
+          index === 0
+            ? {
+                ...section,
+                D_in: depth,
+                tw_in: web,
+                tf_top_in: randomDecimal(0.75, 2.25, 2),
+                bf_top_in: topFlange,
+                tf_bot_in: randomDecimal(0.75, 2.25, 2),
+                bf_bot_in: botFlange,
+              }
+            : section,
+        ),
+        studLayout: {
+          ...current.schedules.studLayout,
+          constants: {
+            ...current.schedules.studLayout.constants,
+            studsPerRow: randomInt(2, 4),
+            diameter_in: randomDecimal(0.75, 1, 2),
+            Fy_ksi: randomInt(50, 65),
+          },
+        },
+        diaphragmLocations: diaphragms,
+      },
+      materials: {
+        ...current.materials,
+        Fy_ksi: randomInt(50, 70),
+        fc_ksi: randomDecimal(4, 6, 1),
+      },
+      autoDeadLoad: {
+        ...current.autoDeadLoad,
+        deckThickness_in: randomDecimal(7, 10, 1),
+        haunchThickness_in: randomDecimal(1.5, 3, 1),
+        wearingSurface_psf: randomInt(0, 30),
+        parapet_plf: randomInt(200, 900),
+      },
+    };
+  };
 
   useEffect(() => {
     const raw = window.localStorage.getItem(STORAGE_BASE_KEY);
@@ -641,6 +768,7 @@ export default function CompositeSteelGirderLrfdPage() {
 
     try {
       const restored = JSON.parse(raw);
+      diaphragmValueMemoryRef.current = (restored?.schedules?.diaphragmLocations || []).map((row) => row?.x_ft ?? null);
       setProject(withLocationsAndDemands(restored));
     } catch (error) {
       console.error('Failed to restore project state', error);
@@ -855,10 +983,27 @@ export default function CompositeSteelGirderLrfdPage() {
             type="button"
             onClick={() => {
               const fresh = withLocationsAndDemands(createInitialProject());
+              diaphragmValueMemoryRef.current = [];
               setProject(fresh);
             }}
           >
             New Project
+          </button>
+          <button
+            className={`${styles.secondaryButton} ${styles.utilityButton}`}
+            type="button"
+            onClick={() => updateProject((current) => buildRandomProject(current))}
+          >
+            <span>Random Input</span>
+            <small>temporary</small>
+          </button>
+          <button
+            className={`${styles.secondaryButton} ${styles.utilityButton}`}
+            type="button"
+            onClick={() => window.alert('Example Input coming soon.')}
+          >
+            <span>Example Input</span>
+            <small>temporary</small>
           </button>
           <button
             className={styles.button}
@@ -866,6 +1011,7 @@ export default function CompositeSteelGirderLrfdPage() {
             onClick={() => {
               if (window.confirm('Reset this project to defaults? This cannot be undone.')) {
                 const fresh = withLocationsAndDemands(createInitialProject());
+                diaphragmValueMemoryRef.current = [];
                 setProject(fresh);
               }
             }}
@@ -903,15 +1049,21 @@ export default function CompositeSteelGirderLrfdPage() {
             <div className={styles.grid4}>
               <label className={styles.field}>
                 # of spans
-                <NumericInput
+                <input
+                  type="text"
+                  inputMode="numeric"
                   value={project.geometry.numberOfSpans}
-                  onCommit={(value) => {
-                    const nextCount = Math.max(1, Math.floor(toNumber(value, 1)));
+                  disabled={allTabsReadOnly}
+                  onChange={(event) => {
+                    const nextCount = Math.max(1, Math.floor(toNumber(event.target.value, 1)));
                     updateProject((current) => {
-                      const nextSpans = resizeArray(current.geometry.spanLengths_ft, nextCount, null);
-                      const nextPoints = resizeArray(current.geometry.spanPoints, nextCount, { momentAtMid: true, xPrime_ft: null }).map((point, index) => {
-                        const spanL = toNumber(nextSpans[index], 0);
-                        return { ...point, xPrime_ft: point.momentAtMid ? spanL / 2 : point.xPrime_ft };
+                      const lastSpanLength = current.geometry.spanLengths_ft[current.geometry.spanLengths_ft.length - 1] ?? null;
+                      const nextSpans = resizeArray(current.geometry.spanLengths_ft, nextCount, lastSpanLength).map((value, index) =>
+                        index < current.geometry.spanLengths_ft.length ? value : null,
+                      );
+                      const nextPoints = resizeArray(current.geometry.spanPoints, nextCount, () => ({ momentAtMid: true, xPrime_ft: null })).map((point, index) => {
+                        const sketchSpan = spanLengthForSketch(nextSpans, index);
+                        return { ...point, xPrime_ft: point.momentAtMid ? sketchSpan / 2 : point.xPrime_ft };
                       });
                       return {
                         ...current,
@@ -924,7 +1076,6 @@ export default function CompositeSteelGirderLrfdPage() {
                       };
                     });
                   }}
-                  disabled={allTabsReadOnly}
                 />
               </label>
               {project.geometry.spanLengths_ft.map((span, index) => (
@@ -1062,7 +1213,8 @@ export default function CompositeSteelGirderLrfdPage() {
               <svg viewBox="0 0 900 220" width="100%" height="220" role="img" aria-label="Bridge elevation">
                 <rect x="0" y="0" width="900" height="220" fill="white" />
                 {(() => {
-                  const spanTotal = project.geometry.spanLengths_ft.reduce((sum, value) => sum + toNumber(value), 0);
+                  const spanLengthsForSketch = project.geometry.spanLengths_ft.map((_, index) => spanLengthForSketch(project.geometry.spanLengths_ft, index));
+                  const spanTotal = spanLengthsForSketch.reduce((sum, value) => sum + toNumber(value), 0);
                   const leftOverhang = toNumber(project.geometry.overhangsVary ? project.geometry.overhangLeft_ft : project.geometry.overhangLength_ft, 0);
                   const rightOverhang = toNumber(project.geometry.overhangsVary ? project.geometry.overhangRight_ft : project.geometry.overhangLength_ft, 0);
                   const total = spanTotal + leftOverhang + rightOverhang || 1;
@@ -1079,7 +1231,7 @@ export default function CompositeSteelGirderLrfdPage() {
 
                   const supports = [cursor];
                   return project.geometry.spanLengths_ft.map((span, index) => {
-                    const width = (toNumber(span) / total) * (beamEndX - beamStartX);
+                    const width = (toNumber(spanLengthsForSketch[index]) / total) * (beamEndX - beamStartX);
                     const supportX = cursor;
                     cursor += width;
                     supports.push(cursor);
@@ -1088,7 +1240,7 @@ export default function CompositeSteelGirderLrfdPage() {
                         <text x={supportX + width / 2} y="92" textAnchor="middle" fontSize="14" fontWeight="700">
                           L
                           <tspan baselineShift="sub" fontSize="10">{index + 1}</tspan>
-                          = {formatDisplay(span)} ft
+                          {toNullableNumber(span) !== null ? `= ${formatDisplay(span)} ft` : ""}
                         </text>
                       </g>
                     );
@@ -1267,7 +1419,7 @@ export default function CompositeSteelGirderLrfdPage() {
                             <tr key={locationRow.id}>
                               <td>
                                 <select
-                                  className={`${styles.pillSelect} ${styles.sectionSelect}`}
+                                  className={`${styles.dropdownSelect} ${styles.sectionSelect}`}
                                   value={locationRow.labelId}
                                   onChange={(event) =>
                                     updateProject((current) => ({
@@ -1351,7 +1503,8 @@ export default function CompositeSteelGirderLrfdPage() {
               </div>
             )}
 
-            <div className={styles.tableWrap}><table className={`${styles.table} ${styles.compactTable}`}><thead><tr><th>Name</th><th>Start Location</th><th>End Location</th><th>Spacing</th>{!(project.schedules.studLayout?.simpleLayout ?? true) && <><th># of studs per row</th><th>Stud Diameter (in)</th><th>F<sub>y</sub> (ksi)</th></>}</tr></thead><tbody>
+            <div className={styles.studLayoutContent}>
+              <div className={`${styles.tableWrap} ${styles.studLayoutTable}`}><table className={`${styles.table} ${styles.compactTable}`}><thead><tr><th>Name</th><th>Start Location</th><th>End Location</th><th>Spacing</th>{!(project.schedules.studLayout?.simpleLayout ?? true) && <><th># of studs per row</th><th>Stud Diameter (in)</th><th>F<sub>y</sub> (ksi)</th></>}</tr></thead><tbody>
               {(project.schedules.studLayout?.rows || []).map((row, idx) => (
                 <tr key={row.id}><td>{row.name}</td>
                   <td><NumericInput value={row.startX_ft} onCommit={(value)=>updateProject((current)=>({ ...current, schedules:{...current.schedules, studLayout:{...current.schedules.studLayout, rows: current.schedules.studLayout.rows.map((entry, i)=> i===idx ? {...entry,startX_ft: value}:entry)}}}))} /></td>
@@ -1367,12 +1520,13 @@ export default function CompositeSteelGirderLrfdPage() {
                 </tr>
               ))}
             </tbody></table></div>
+            <div className={styles.studLayoutSketch}>
             <PlaceholderSketch title="Stud Layout">
-              <svg viewBox="0 0 320 180" width="100%" height="180">
-                <rect width="320" height="180" fill="white" />
-                <rect x="70" y="98" width="180" height="14" fill="#9ca3af" stroke="black" strokeWidth="1.5" />
-                <rect x="151" y="112" width="18" height="34" fill="#9ca3af" stroke="black" strokeWidth="1.5" />
-                <rect x="78" y="146" width="164" height="14" fill="#9ca3af" stroke="black" strokeWidth="1.5" />
+              <svg viewBox="0 0 340 190" width="100%" height="190">
+                <rect width="340" height="190" fill="white" />
+                <rect x="86" y="68" width="168" height="14" fill="#9ca3af" stroke="black" strokeWidth="1.5" />
+                <rect x="166" y="82" width="8" height="64" fill="#9ca3af" stroke="black" strokeWidth="1.5" />
+                <rect x="86" y="146" width="168" height="14" fill="#9ca3af" stroke="black" strokeWidth="1.5" />
                 {(() => {
                   const studCount = Math.max(0, Math.floor(toNumber(project.schedules.studLayout?.constants?.studsPerRow, 0)));
                   const spacing = studCount <= 1 ? 0 : 140 / (studCount - 1);
@@ -1381,14 +1535,16 @@ export default function CompositeSteelGirderLrfdPage() {
                     const x = firstX + idx * spacing;
                     return (
                       <g key={`stud-${idx}`}>
-                        <rect x={x - 3} y="68" width="6" height="30" fill="#374151" />
-                        <rect x={x - 5} y="62" width="10" height="6" fill="#6b7280" />
+                        <rect x={x - 3} y="38" width="6" height="30" fill="#374151" />
+                        <rect x={x - 5} y="32" width="10" height="6" fill="#6b7280" />
                       </g>
                     );
                   });
                 })()}
               </svg>
             </PlaceholderSketch>
+            </div>
+            </div>
           </section>
 
           <section className={styles.card}>
@@ -1401,13 +1557,24 @@ export default function CompositeSteelGirderLrfdPage() {
                   value={project.schedules.diaphragmLocations.length}
                   onCommit={(value) => {
                     const count = Math.max(1, Math.floor(toNumber(value, 1)));
-                    updateProject((current) => ({
-                      ...current,
-                      schedules: {
-                        ...current.schedules,
-                        diaphragmLocations: resizeArray(current.schedules.diaphragmLocations, count, createDiaphragm()),
-                      },
-                    }));
+                    updateProject((current) => {
+                      current.schedules.diaphragmLocations.forEach((entry, index) => {
+                        diaphragmValueMemoryRef.current[index] = entry.x_ft;
+                      });
+                      const next = resizeArray(current.schedules.diaphragmLocations, count, () => createDiaphragm()).map((entry, index) => {
+                        if (index >= current.schedules.diaphragmLocations.length && (diaphragmValueMemoryRef.current[index] ?? null) !== null) {
+                          return { ...entry, x_ft: diaphragmValueMemoryRef.current[index] };
+                        }
+                        return entry;
+                      });
+                      return {
+                        ...current,
+                        schedules: {
+                          ...current.schedules,
+                          diaphragmLocations: next,
+                        },
+                      };
+                    });
                   }}
                 />
               </label>
@@ -1419,7 +1586,7 @@ export default function CompositeSteelGirderLrfdPage() {
                 {project.schedules.diaphragmLocations.map((row, index) => (
                   <tr key={row.id}>
                     <td>D{index + 1}</td>
-                    <td><NumericInput value={row.x_ft} onCommit={(value)=>updateProject((current)=>({ ...current, schedules:{...current.schedules, diaphragmLocations: current.schedules.diaphragmLocations.map((entry)=>entry.id===row.id?{...entry,x_ft:value}:entry)}}))} /></td>
+                    <td><NumericInput value={row.x_ft} onCommit={(value)=>updateProject((current)=>({ ...current, schedules:{...current.schedules, diaphragmLocations: current.schedules.diaphragmLocations.map((entry, idx)=>{ if (entry.id!==row.id) return entry; const clamped = value===null ? null : Math.max(0, Math.min(totalBridgeLength, value)); diaphragmValueMemoryRef.current[idx] = clamped; return {...entry,x_ft:clamped}; })}}))} /></td>
                   </tr>
                 ))}
               </tbody></table>
@@ -1446,7 +1613,11 @@ export default function CompositeSteelGirderLrfdPage() {
                   }
 
                   const diaphragmGroups = (project.schedules.diaphragmLocations || []).map((row, idx) => {
-                    const x = 70 + (Math.max(0, toNumber(row.x_ft, 0)) / totalLength) * 790;
+                    if (row.x_ft === null || row.x_ft === "" || typeof row.x_ft === "undefined") {
+                      return null;
+                    }
+                    const clampedValue = Math.max(0, Math.min(totalLength, toNumber(row.x_ft, 0)));
+                    const x = 70 + (clampedValue / totalLength) * 790;
                     return (
                       <g key={`dia-line-${row.id}`}>
                         {girderYs.slice(0, -1).map((y, yIdx) => (
@@ -1467,7 +1638,7 @@ export default function CompositeSteelGirderLrfdPage() {
                     );
                   });
 
-                  return [...supportGroups, ...diaphragmGroups];
+                  return [...supportGroups, ...diaphragmGroups.filter(Boolean)];
                 })()}
               </svg>
               <h4 className={styles.diagramLabel}>Structural Steel Plan</h4>
@@ -1475,7 +1646,7 @@ export default function CompositeSteelGirderLrfdPage() {
           </section>
 
           <section className={styles.card}>
-            <h3 className={styles.sectionTitle}>Deck Rebar</h3>
+            <h3 className={styles.sectionTitle}>Deck Reinforcement</h3>
             {[
               ['longitudinalTop', 'Longitudinal (Top)'],
               ['longitudinalBottom', 'Longitudinal (Bottom)'],
@@ -1490,7 +1661,7 @@ export default function CompositeSteelGirderLrfdPage() {
                   <div className={styles.grid4}>
                     <label className={styles.field}>
                       Bar size (primary)
-                      <select className={styles.pillSelect}
+                      <select className={styles.dropdownSelect}
                         value={group.primaryBar}
                         onChange={(event) =>
                           updateProject((current) => ({
@@ -1544,7 +1715,7 @@ export default function CompositeSteelGirderLrfdPage() {
                       <div className={styles.grid4}>
                         <label className={styles.field}>
                           Bar size (secondary)
-                          <select className={styles.pillSelect}
+                          <select className={styles.dropdownSelect}
                             value={group.secondaryBar || ''}
                             onChange={(event) =>
                               updateProject((current) => ({
@@ -1610,7 +1781,7 @@ export default function CompositeSteelGirderLrfdPage() {
                   {project.derived.locations.map((location) => (
                     <tr key={location.id}>
                       <td>{location.name}</td>
-                      <td>
+                      <td className={styles.xGlobalCell}>
                         {location.type === 'span' ? (
                           <div className={styles.xGlobalInputCell}>
                             <NumericInput
@@ -1618,8 +1789,13 @@ export default function CompositeSteelGirderLrfdPage() {
                               value={location.x_global_ft}
                               onCommit={(value) =>
                                 updateProject((current) => {
+                                  const spanStart = current.geometry.spanLengths_ft
+                                    .slice(0, location.spanIndex)
+                                    .reduce((sum, length) => sum + toNumber(length, 0), 0);
+                                  const spanLength = toNumber(current.geometry.spanLengths_ft[location.spanIndex], 0);
+                                  const normalized = value === null ? null : Math.max(0, Math.min(spanLength, value - spanStart));
                                   const nextPoints = [...current.geometry.spanPoints];
-                                  nextPoints[location.spanIndex] = { ...nextPoints[location.spanIndex], xPrime_ft: value };
+                                  nextPoints[location.spanIndex] = { ...nextPoints[location.spanIndex], xPrime_ft: normalized };
                                   return { ...current, geometry: { ...current.geometry, spanPoints: nextPoints } };
                                 })
                               }
