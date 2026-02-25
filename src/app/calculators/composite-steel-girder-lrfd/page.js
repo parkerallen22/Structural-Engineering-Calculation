@@ -3,6 +3,7 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import styles from './page.module.css';
+import tooltipStyles from './info-tooltip.module.css';
 
 const CALCULATOR_ID = 'composite-steel-girder-lrfd';
 const STORAGE_BASE_KEY = `calculator:${CALCULATOR_ID}:latest`;
@@ -616,7 +617,7 @@ const LIVE_LOAD_SHEAR_COLUMNS = [
 
 function LabelWithInfo({ label, info }) {
   return (
-    <span className={styles.labelWithInfo}>
+    <span className={`${styles.labelWithInfo} ${tooltipStyles.labelWithInfo}`}>
       <span>{label}</span>
       <InfoTooltip text={info} />
     </span>
@@ -700,14 +701,14 @@ function InfoTooltip({ text }) {
 
   return (
     <span
-      className={styles.infoTooltipWrap}
+      className={`${styles.infoTooltipWrap} ${tooltipStyles.infoTooltipWrap}`}
       ref={containerRef}
       onMouseEnter={() => setOpen(true)}
       onMouseLeave={() => setOpen(false)}
     >
       <button
         type="button"
-        className={styles.infoIcon}
+        className={`${styles.infoIcon} ${tooltipStyles.infoIcon}`}
         aria-label={`Info: ${text}`}
         aria-expanded={open}
         aria-describedby={open ? tooltipId : undefined}
@@ -721,7 +722,7 @@ function InfoTooltip({ text }) {
             role="tooltip"
             id={tooltipId}
             ref={popoverRef}
-            className={`${styles.infoPopover} ${renderBelow ? styles.infoPopoverBelow : styles.infoPopoverAbove}`}
+            className={`${styles.infoPopover} ${tooltipStyles.infoPopover} ${renderBelow ? styles.infoPopoverBelow : styles.infoPopoverAbove} ${renderBelow ? tooltipStyles.infoPopoverBelow : tooltipStyles.infoPopoverAbove}`}
             style={{ left: `${popoverPosition.left}px`, top: `${popoverPosition.top}px` }}
           >
             {text}
