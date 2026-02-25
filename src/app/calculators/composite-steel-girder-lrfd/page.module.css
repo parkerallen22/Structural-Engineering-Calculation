@@ -1,7 +1,9 @@
 .page {
   display: grid;
   gap: 1.25rem;
-  padding-inline: 0.25rem;
+  padding-inline: 1.25rem;
+  max-width: 1600px;
+  margin: 0 auto;
 }
 
 .header {
@@ -129,6 +131,7 @@
 .toggleButtonGroup {
   display: inline-flex;
   gap: 0.35rem;
+  align-items: center;
 }
 
 .toggleButton {
@@ -136,8 +139,9 @@
   border-radius: 999px;
   background: #fff;
   color: #111827;
-  padding: 0.35rem 0.8rem;
+  padding: 0.45rem 0.8rem;
   min-width: 48px;
+  line-height: 1;
   font: inherit;
   cursor: pointer;
 }
@@ -246,7 +250,7 @@
   display: flex;
   gap: 0.75rem;
   flex-wrap: wrap;
-  align-items: flex-end;
+  align-items: center;
   margin-bottom: 0.35rem;
 }
 
@@ -288,7 +292,7 @@
 .xGlobalInputCell {
   display: grid;
   gap: 0.3rem;
-  align-items: start;
+  justify-items: center;
 }
 
 .compactToggleRow {
@@ -297,18 +301,36 @@
   gap: 0.35rem;
 }
 
-.pillSelect {
-  border: 1px solid #cfd5e2;
-  border-radius: 999px;
-  padding: 0.35rem 0.75rem;
+.dropdownSelect {
+  border: 1px solid #94a3b8;
+  border-radius: 10px;
+  padding: 0.42rem 2.1rem 0.42rem 0.65rem;
   font: inherit;
-  background: #fff;
-  min-width: 0;
-  width: fit-content;
+  color: #0f172a;
+  background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  min-width: 150px;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, #475569 50%),
+    linear-gradient(135deg, #475569 50%, transparent 50%),
+    linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%);
+  background-position:
+    calc(100% - 15px) calc(50% - 3px),
+    calc(100% - 9px) calc(50% - 3px),
+    center;
+  background-size: 6px 6px, 6px 6px, 100% 100%;
+  background-repeat: no-repeat;
+}
+
+.dropdownSelect:focus {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
 }
 
 .sectionSelect {
-  min-width: 88px;
+  min-width: 110px;
 }
 
 .buttonRowSpacing {
@@ -375,4 +397,41 @@
   width: 100%;
   font-weight: 600;
   color: #374151;
+}
+
+
+.studLayoutContent {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.studLayoutTable {
+  flex: 1 1 auto;
+  min-width: 560px;
+}
+
+.studLayoutSketch {
+  flex: 0 0 360px;
+}
+
+.xGlobalCell {
+  text-align: center;
+}
+
+.xGlobalCell input {
+  margin-inline: auto;
+  text-align: center;
+}
+
+.utilityButton {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.1;
+}
+
+.utilityButton small {
+  font-size: 0.68rem;
+  opacity: 0.8;
 }
