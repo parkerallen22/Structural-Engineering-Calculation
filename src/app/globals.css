@@ -82,14 +82,19 @@ a {
 
 .mainContent {
   min-height: calc(100vh - 132px);
+  width: 100%;
 }
 
 .siteContainer {
   width: 100%;
-  max-width: 1200px;
+  max-width: 1280px;
   margin-inline: auto;
-  padding-inline: clamp(1.5rem, 5vw, 4rem);
+  padding-inline: clamp(1rem, 3vw, 2rem);
   box-sizing: border-box;
+}
+
+.mainContent > * {
+  min-width: 0;
 }
 
 .siteFooter {

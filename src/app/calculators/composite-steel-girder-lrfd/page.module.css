@@ -107,9 +107,9 @@
   gap: 0.55rem;
 }
 
-.grid2 { grid-template-columns: repeat(auto-fit, minmax(180px, max-content)); }
-.grid3 { grid-template-columns: repeat(auto-fit, minmax(165px, max-content)); }
-.grid4 { grid-template-columns: repeat(auto-fit, minmax(145px, max-content)); }
+.grid2 { grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr)); }
+.grid3 { grid-template-columns: repeat(auto-fit, minmax(min(165px, 100%), 1fr)); }
+.grid4 { grid-template-columns: repeat(auto-fit, minmax(min(145px, 100%), 1fr)); }
 
 .field {
   display: grid;
