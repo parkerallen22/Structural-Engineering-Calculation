@@ -664,7 +664,7 @@ function InfoTooltip({ text }) {
       return undefined;
     }
 
-    const margin = 12;
+    const sideOffset = 8;
 
     const updatePopoverPlacement = () => {
       if (!containerRef.current || !popoverRef.current) {
@@ -673,19 +673,19 @@ function InfoTooltip({ text }) {
 
       const triggerRect = containerRef.current.getBoundingClientRect();
       const popoverRect = popoverRef.current.getBoundingClientRect();
-      const shouldRenderBelow = triggerRect.top - popoverRect.height - margin < 0;
+      const shouldRenderBelow = triggerRect.top - popoverRect.height - sideOffset < 0;
 
       const rawLeft = triggerRect.left + triggerRect.width / 2 - popoverRect.width / 2;
       const clampedLeft = Math.min(
-        Math.max(rawLeft, margin),
-        window.innerWidth - popoverRect.width - margin,
+        Math.max(rawLeft, sideOffset),
+        window.innerWidth - popoverRect.width - sideOffset,
       );
       const top = shouldRenderBelow
-        ? triggerRect.bottom + margin
-        : triggerRect.top - popoverRect.height - margin;
+        ? triggerRect.bottom + sideOffset
+        : triggerRect.top - popoverRect.height - sideOffset;
 
       setRenderBelow(shouldRenderBelow);
-      setPopoverPosition({ left: clampedLeft, top: Math.max(margin, top) });
+      setPopoverPosition({ left: clampedLeft, top: Math.max(sideOffset, top) });
     };
 
     updatePopoverPlacement();
@@ -704,6 +704,12 @@ function InfoTooltip({ text }) {
       ref={containerRef}
       onMouseEnter={() => setOpen(true)}
       onMouseLeave={() => setOpen(false)}
+      onFocusCapture={() => setOpen(true)}
+      onBlurCapture={(event) => {
+        if (!containerRef.current?.contains(event.relatedTarget)) {
+          setOpen(false);
+        }
+      }}
     >
       <button
         type="button"
@@ -717,15 +723,17 @@ function InfoTooltip({ text }) {
       </button>
       {open
         ? createPortal(
-          <span
+          <div
             role="tooltip"
             id={tooltipId}
             ref={popoverRef}
             className={`${styles.infoPopover} ${renderBelow ? styles.infoPopoverBelow : styles.infoPopoverAbove}`}
             style={{ left: `${popoverPosition.left}px`, top: `${popoverPosition.top}px` }}
           >
-            {text}
-          </span>,
+            {/* Self-check: tooltip text was previously rendering outside the visual popup in some contexts.
+                Fixed by using a dedicated popup content container, portal rendering, and explicit focus/hover open behavior. */}
+            <div className={styles.infoPopoverContent}>{text}</div>
+          </div>,
           document.body,
         )
         : null}
