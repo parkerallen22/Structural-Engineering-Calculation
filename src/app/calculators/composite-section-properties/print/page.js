@@ -24,7 +24,7 @@ function SummaryTable({ region }) {
         <tr><td>Non-Composite (Steel Only)</td><td>{fmt(region.steelOnly.i)}</td><td>—</td><td>{fmt(region.steelOnly.sectionModulus.topOfSteel)}</td><td>{fmt(region.steelOnly.sectionModulus.bottomOfSteel)}</td><td>{fmt(region.steelOnly.yBar)}</td></tr>
         <tr><td>Composite (n)</td><td>{fmt(region.compositeN.i)}</td><td>{fmt(region.compositeN.sectionModulus.topOfSlab)}</td><td>{fmt(region.compositeN.sectionModulus.topOfSteel)}</td><td>{fmt(region.compositeN.sectionModulus.bottomOfSteel)}</td><td>{fmt(region.compositeN.yBar)}</td></tr>
         <tr><td>Composite (3n)</td><td>{fmt(region.composite3N.i)}</td><td>{fmt(region.composite3N.sectionModulus.topOfSlab)}</td><td>{fmt(region.composite3N.sectionModulus.topOfSteel)}</td><td>{fmt(region.composite3N.sectionModulus.bottomOfSteel)}</td><td>{fmt(region.composite3N.yBar)}</td></tr>
-        {region.key !== 'positive' ? <tr><td>Composite (Cracked, Negative)</td><td>{fmt(region.crackedNegative.iCracked)}</td><td>—</td><td>{fmt(region.crackedNegative.sectionModulus.topOfSteel)}</td><td>{fmt(region.crackedNegative.sectionModulus.bottomOfSteel)}</td><td>{fmt(region.crackedNegative.neutralAxis)}</td></tr> : null}
+        <tr><td>Composite (cr)</td><td>{fmt(region.compositeCr.i)}</td><td>{fmt(region.compositeCr.sectionModulus.topOfSlab)}</td><td>{fmt(region.compositeCr.sectionModulus.topOfSteel)}</td><td>{fmt(region.compositeCr.sectionModulus.bottomOfSteel)}</td><td>{fmt(region.compositeCr.yBar)}</td></tr>
       </tbody>
     </table>
   );

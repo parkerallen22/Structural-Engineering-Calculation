@@ -16,9 +16,9 @@ function rectangleIxx(width, height) {
   return (width * height ** 3) / 12;
 }
 
-function buildExpandedRows(components, centroid) {
+function buildExpandedRows(components, referenceY) {
   return components.map((component) => {
-    const d = component.y - centroid;
+    const d = Math.abs(component.y - referenceY);
     const ad2 = component.area * d ** 2;
     return {
       name: component.name,
@@ -163,59 +163,73 @@ function computeCompositeUncracked(region, transformedConcreteFactor, bars, labe
 
 function computePositiveMomentDetailed(region, modularRatio) {
   const steelComponents = buildSteelComponents(region);
-  const steelSummary = summarizeSection(steelComponents, {
-    topOfSteel: region.D,
-    bottomOfSteel: 0,
-  });
-
-  const steelRows = buildExpandedRows(steelComponents, steelSummary.yBar);
-
-  const manualSteelI = 3270;
-  const manualSteelS = 243;
+  const steelArea = steelComponents.reduce((sum, component) => sum + component.area, 0);
+  const steelAYb = steelComponents.reduce((sum, component) => sum + (component.area * component.y), 0);
+  const steelCb = steelAYb / Math.max(steelArea, EPSILON);
+  const steelRows = buildExpandedRows(steelComponents, steelCb);
+  const steelI = steelRows.reduce((sum, row) => sum + row.ioPlusAd2, 0);
+  const steelCt = region.D - steelCb;
 
   const steelDetail = {
     rows: steelRows,
     totals: {
-      area: steelSummary.totalArea,
-      ayb: steelComponents.reduce((sum, component) => sum + (component.area * component.y), 0),
-      i: steelRows.reduce((sum, row) => sum + row.ioPlusAd2, 0),
+      area: steelArea,
+      ayb: steelAYb,
+      i: steelI,
     },
     c: {
-      bottom: steelSummary.yBar,
-      topSteel: region.D - steelSummary.yBar,
+      bottom: steelCb,
+      topSteel: steelCt,
       depth: region.D,
     },
     s: {
-      bottom: manualSteelS,
-      topSteel: manualSteelS,
-      i: manualSteelI,
+      bottom: safeDivide(steelI, steelCb),
+      topSteel: safeDivide(steelI, steelCt),
+      i: steelI,
+    },
+    i: steelI,
+    yBar: steelCb,
+    sectionModulus: {
+      bottomOfSteel: safeDivide(steelI, steelCb),
+      topOfSteel: safeDivide(steelI, steelCt),
     },
   };
 
   const buildCompositeDetail = (factor, label) => {
     const summary = computeCompositeUncracked(region, factor, null, label);
-    const rows = buildExpandedRows(summary.components, summary.yBar);
-    const topDistance = summary.concreteTopY - summary.yBar;
-    const beamDistance = summary.yBar - region.D;
+    const area = summary.components.reduce((sum, component) => sum + component.area, 0);
+    const ayb = summary.components.reduce((sum, component) => sum + (component.area * component.y), 0);
+    const cb = ayb / Math.max(area, EPSILON);
+    const hc = summary.concreteTopY;
+    const ctSlab = hc - cb;
+    const ctBeam = ctSlab - region.tHaunch - region.tSlab;
+    const rows = buildExpandedRows(summary.components, ctSlab);
+    const i = rows.reduce((sum, row) => sum + row.ioPlusAd2, 0);
 
     return {
-      summary,
       rows,
       totals: {
-        area: summary.totalArea,
-        ayb: summary.components.reduce((sum, component) => sum + (component.area * component.y), 0),
-        i: rows.reduce((sum, row) => sum + row.ioPlusAd2, 0),
+        area,
+        ayb,
+        i,
       },
       c: {
-        bottom: summary.yBar,
-        topSlab: topDistance,
-        beam: Math.abs(beamDistance),
-        depth: summary.concreteTopY,
+        bottom: cb,
+        topSlab: ctSlab,
+        beam: ctBeam,
+        depth: hc,
       },
       s: {
-        bottom: safeDivide(summary.i, summary.yBar),
-        topSlab: safeDivide(summary.i, topDistance),
-        topSteel: safeDivide(summary.i, Math.abs(beamDistance)),
+        bottom: safeDivide(i, cb),
+        topSlab: safeDivide(i, ctSlab),
+        topSteel: safeDivide(i, ctBeam),
+      },
+      i,
+      yBar: cb,
+      sectionModulus: {
+        bottomOfSteel: safeDivide(i, cb),
+        topOfSlab: safeDivide(i, ctSlab),
+        topOfSteel: safeDivide(i, ctBeam),
       },
     };
   };
@@ -224,153 +238,7 @@ function computePositiveMomentDetailed(region, modularRatio) {
     nonComposite: steelDetail,
     compositeN: buildCompositeDetail(modularRatio, 'n'),
     composite3N: buildCompositeDetail(modularRatio * 3, '3n'),
-  };
-}
-
-function solveCrackedNeutralAxis(region, modularRatio, steelComponents, rebarComponents) {
-  const concreteTop = region.D + region.tHaunch + region.tSlab;
-  const concreteBottom = region.D;
-
-  const forceBalance = (na) => {
-    const steelMoment = [...steelComponents, ...rebarComponents].reduce(
-      (sum, component) => sum + (component.area * (component.y - na)),
-      0,
-    );
-
-    if (na >= concreteTop) {
-      return steelMoment;
-    }
-
-    const compressionBottom = Math.max(na, concreteBottom);
-    const compressionDepth = concreteTop - compressionBottom;
-
-    if (compressionDepth <= 0) {
-      return steelMoment;
-    }
-
-    const area = (region.bEff * compressionDepth) / modularRatio;
-    const centroid = (compressionBottom + concreteTop) / 2;
-
-    return steelMoment + (area * (centroid - na));
-  };
-
-  let low = 0;
-  let high = concreteTop;
-  let lowValue = forceBalance(low);
-  let highValue = forceBalance(high);
-
-  if (lowValue === 0) {
-    return low;
-  }
-
-  if (highValue === 0) {
-    return high;
-  }
-
-  if (lowValue * highValue > 0) {
-    const trialComponents = [
-      ...steelComponents,
-      ...rebarComponents,
-      {
-        area: (region.bEff * (concreteTop - concreteBottom)) / modularRatio,
-        y: (concreteTop + concreteBottom) / 2,
-      },
-    ];
-
-    const fallbackArea = trialComponents.reduce((sum, component) => sum + component.area, 0);
-    const fallbackNa =
-      trialComponents.reduce((sum, component) => sum + (component.area * component.y), 0) /
-      Math.max(fallbackArea, EPSILON);
-    return fallbackNa;
-  }
-
-  for (let i = 0; i < 120; i += 1) {
-    const mid = (low + high) / 2;
-    const midValue = forceBalance(mid);
-
-    if (Math.abs(midValue) < 1e-8) {
-      return mid;
-    }
-
-    if (lowValue * midValue <= 0) {
-      high = mid;
-      highValue = midValue;
-    } else {
-      low = mid;
-      lowValue = midValue;
-    }
-  }
-
-  return (low + high) / 2;
-}
-
-function computeCrackedNegative(region, modularRatio, bars) {
-  const steelComponents = buildSteelComponents(region);
-  const rebarComponents = [
-    {
-      name: 'Top reinforcement',
-      area: bars.top.areaPerInch * region.bEff,
-      y: bars.top.yCentroid,
-      iLocal: 0,
-    },
-    {
-      name: 'Bottom reinforcement',
-      area: bars.bottom.areaPerInch * region.bEff,
-      y: bars.bottom.yCentroid,
-      iLocal: 0,
-    },
-  ];
-
-  const neutralAxis = solveCrackedNeutralAxis(
-    region,
-    modularRatio,
-    steelComponents,
-    rebarComponents,
-  );
-
-  const concreteTop = region.D + region.tHaunch + region.tSlab;
-  const concreteBottom = region.D;
-  const compressionBottom = Math.max(neutralAxis, concreteBottom);
-  const compressionDepth = Math.max(concreteTop - compressionBottom, 0);
-
-  const components = [
-    ...steelComponents,
-    ...rebarComponents,
-  ];
-
-  if (compressionDepth > EPSILON) {
-    components.push({
-      name: 'Concrete in compression (cracked)',
-      area: (region.bEff * compressionDepth) / modularRatio,
-      y: (compressionBottom + concreteTop) / 2,
-      iLocal: rectangleIxx(region.bEff, compressionDepth) / modularRatio,
-    });
-  }
-
-  const iCracked = components.reduce((sum, component) => {
-    const d = component.y - neutralAxis;
-    return sum + (component.iLocal || 0) + (component.area * d ** 2);
-  }, 0);
-
-  const detailRows = buildExpandedRows(components, neutralAxis);
-
-  return {
-    neutralAxis,
-    components,
-    iCracked,
-    sectionModulus: {
-      topOfSteel: safeDivide(iCracked, Math.abs(region.D - neutralAxis)),
-      bottomOfSteel: safeDivide(iCracked, Math.abs(neutralAxis)),
-    },
-    compressionDepth,
-    detail: {
-      rows: detailRows,
-      totals: {
-        area: components.reduce((sum, component) => sum + component.area, 0),
-        ayb: components.reduce((sum, component) => sum + (component.area * component.y), 0),
-        i: detailRows.reduce((sum, row) => sum + row.ioPlusAd2, 0),
-      },
-    },
+    compositeCr: buildCompositeDetail(modularRatio, 'cr'),
   };
 }
 
@@ -447,7 +315,6 @@ export function computeSectionProps(input) {
     'Concrete effective width should be selected per governing code provisions for the specific loading scenario.',
     'Clear distance is interpreted from concrete face to bar outside edge, then converted to centroid using bar radius.',
     `Ec ${input.materials.autoEc ? `computed from f\'c using Ec = 63,000*sqrt(f\'c [psi])` : 'set manually by user'}.`,
-    'Cracked negative NA solved by binary search on transformed force equilibrium.',
   ];
 
   const regionsToRun = input.positiveSameAsNegative
@@ -507,9 +374,9 @@ export function computeSectionProps(input) {
     });
 
     const plusMoment = computePositiveMomentDetailed(region, modularRatio);
-    const compositeN = plusMoment.compositeN.summary;
-    const composite3N = plusMoment.composite3N.summary;
-    const crackedNegative = computeCrackedNegative(region, modularRatio, bars);
+    const compositeN = plusMoment.compositeN;
+    const composite3N = plusMoment.composite3N;
+    const compositeCr = plusMoment.compositeCr;
 
     output.regions.push({
       key: regionConfig.key,
@@ -519,8 +386,8 @@ export function computeSectionProps(input) {
       steelOnly,
       compositeN,
       composite3N,
+      compositeCr,
       plusMoment,
-      crackedNegative,
     });
   });
 

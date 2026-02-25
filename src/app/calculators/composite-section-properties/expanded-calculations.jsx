@@ -128,21 +128,21 @@ export function ExpandedCalculations({ regionResult }) {
         ]}
       />
 
-      {regionResult.key !== 'positive' ? (
-        <ExpandedComponentTable
-          title="Composite (cracked) Negative Region"
-          detail={regionResult.crackedNegative.detail}
-          cRows={[
-            { key: 'na', label: cLabel('neutral axis', '(cr)'), value: regionResult.crackedNegative.neutralAxis },
-            { key: 'cc', label: cLabel('compression depth', '(cr)'), value: regionResult.crackedNegative.compressionDepth },
-          ]}
-          sRows={[
-            { key: 'st', label: sLabel('top steel', '(cr)'), value: regionResult.crackedNegative.sectionModulus.topOfSteel, units: 'in³' },
-            { key: 'sb', label: sLabel('bottom steel', '(cr)'), value: regionResult.crackedNegative.sectionModulus.bottomOfSteel, units: 'in³' },
-            { key: 'i', label: 'I (cr)', value: regionResult.crackedNegative.iCracked, units: 'in⁴' },
-          ]}
-        />
-      ) : null}
+      <ExpandedComponentTable
+        title={`Composite (cr) ${regionTitle}`}
+        detail={plusMoment.compositeCr}
+        cRows={[
+          { key: 'cb', label: cLabel('bottom steel', '(cr)'), value: plusMoment.compositeCr.c.bottom },
+          { key: 'cts', label: cLabel('top slab', '(cr)'), value: plusMoment.compositeCr.c.topSlab },
+          { key: 'ctb', label: cLabel('top steel', '(cr)'), value: plusMoment.compositeCr.c.beam },
+          { key: 'hc', label: cLabel('section depth', '(cr)'), value: plusMoment.compositeCr.c.depth },
+        ]}
+        sRows={[
+          { key: 'sb', label: sLabel('bottom steel', '(cr)'), value: plusMoment.compositeCr.s.bottom, units: 'in³' },
+          { key: 'sts', label: sLabel('top slab', '(cr)'), value: plusMoment.compositeCr.s.topSlab, units: 'in³' },
+          { key: 'stb', label: sLabel('top steel', '(cr)'), value: plusMoment.compositeCr.s.topSteel, units: 'in³' },
+        ]}
+      />
     </div>
   );
 }
