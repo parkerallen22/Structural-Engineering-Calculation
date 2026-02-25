@@ -952,7 +952,7 @@ export default function CompositeSteelGirderLrfdPage() {
 
   return (
     <div className={styles.page}>
-      <div className={`${styles.content} ${styles.innerDebug}`}>
+      <div className={styles.content}>
         <header className={styles.header}>
         <div>
           <h1>Composite Steel Girder (LRFD)</h1>
@@ -1282,14 +1282,9 @@ export default function CompositeSteelGirderLrfdPage() {
                     cursor += (spacingValues[index - 1] / totalWidth) * deckWidth;
                     return cursor;
                   });
-                  const leftEdge = deckStartX + (leftOverhang / totalWidth) * deckWidth;
-                  const rightEdge = deckStartX + ((leftOverhang + girderWidth) / totalWidth) * deckWidth;
-
                   return (
                     <>
                       <rect x={deckStartX} y="70" width={deckWidth} height="20" fill="#e5e7eb" stroke="black" strokeWidth="1.5" />
-                      <line x1={deckStartX} y1="62" x2={leftEdge} y2="62" stroke="#1f2937" strokeWidth="1" />
-                      <line x1={rightEdge} y1="62" x2={deckStartX + deckWidth} y2="62" stroke="#1f2937" strokeWidth="1" />
                       {girderXs.map((x, i) => (
                         <g key={`girder-${i}`}>
                           <rect x={x - 24} y="95" width="48" height="10" fill="#9ca3af" stroke="black" strokeWidth="1.5" />
