@@ -415,9 +415,12 @@
 
 .infoPopover {
   position: absolute;
+  display: block;
   left: 50%;
   transform: translateX(calc(-50% + var(--tooltip-x-nudge, 0px)));
   width: min(220px, calc(100vw - 2rem));
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
   padding: 0.45rem 0.55rem;
   border-radius: 10px;
   border: 1px solid #dbe2ea;
