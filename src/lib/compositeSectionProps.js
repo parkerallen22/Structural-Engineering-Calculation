@@ -178,14 +178,14 @@ function computeCompositeUncracked(region, transformedConcreteFactor, bars, labe
   };
 }
 
-function computePositiveMomentDetailed(region, modularRatio) {
+function computePositiveMomentDetailed(region, modularRatio, bars) {
   const steelComponents = buildSteelComponents(region);
   const steelArea = steelComponents.reduce((sum, component) => sum + component.area, 0);
   const steelAYb = steelComponents.reduce((sum, component) => sum + (component.area * component.y), 0);
   const steelCb = steelAYb / Math.max(steelArea, EPSILON);
   const steelRows = buildExpandedRows(steelComponents, steelCb);
   const steelI = steelRows.reduce((sum, row) => sum + row.ioPlusAd2, 0);
-  const steelCt = region.D - steelCb;
+  const steelCt = Math.abs(region.D - steelCb);
 
   const steelDetail = {
     rows: steelRows,
@@ -195,19 +195,19 @@ function computePositiveMomentDetailed(region, modularRatio) {
       i: steelI,
     },
     c: {
-      bottom: steelCb,
+      bottom: Math.abs(steelCb),
       topSteel: steelCt,
-      depth: region.D,
+      depth: Math.abs(region.D),
     },
     s: {
-      bottom: safeDivide(steelI, steelCb),
+      bottom: safeDivide(steelI, Math.abs(steelCb)),
       topSteel: safeDivide(steelI, steelCt),
       i: steelI,
     },
     i: steelI,
-    yBar: steelCb,
+    yBar: Math.abs(steelCb),
     sectionModulus: {
-      bottomOfSteel: safeDivide(steelI, steelCb),
+      bottomOfSteel: safeDivide(steelI, Math.abs(steelCb)),
       topOfSteel: safeDivide(steelI, steelCt),
     },
   };
@@ -218,8 +218,8 @@ function computePositiveMomentDetailed(region, modularRatio) {
     const ayb = summary.components.reduce((sum, component) => sum + (component.area * component.y), 0);
     const cb = ayb / Math.max(area, EPSILON);
     const hc = summary.concreteTopY;
-    const ctSlab = hc - cb;
-    const ctBeam = ctSlab - region.tHaunch - region.tSlab;
+    const ctSlab = Math.abs(hc - cb);
+    const ctBeam = Math.abs(ctSlab - region.tHaunch - region.tSlab);
     const rows = buildExpandedRowsWithTopReference(summary.components, ctSlab, hc);
     const i = rows.reduce((sum, row) => sum + row.ioPlusAd2, 0);
 
@@ -231,20 +231,20 @@ function computePositiveMomentDetailed(region, modularRatio) {
         i,
       },
       c: {
-        bottom: cb,
+        bottom: Math.abs(cb),
         topSlab: ctSlab,
         beam: ctBeam,
-        depth: hc,
+        depth: Math.abs(hc),
       },
       s: {
-        bottom: safeDivide(i, cb),
+        bottom: safeDivide(i, Math.abs(cb)),
         topSlab: safeDivide(i, ctSlab),
         topSteel: safeDivide(i, ctBeam),
       },
       i,
-      yBar: cb,
+      yBar: Math.abs(cb),
       sectionModulus: {
-        bottomOfSteel: safeDivide(i, cb),
+        bottomOfSteel: safeDivide(i, Math.abs(cb)),
         topOfSlab: safeDivide(i, ctSlab),
         topOfSteel: safeDivide(i, ctBeam),
       },
@@ -255,7 +255,66 @@ function computePositiveMomentDetailed(region, modularRatio) {
     nonComposite: steelDetail,
     compositeN: buildCompositeDetail(modularRatio, 'n'),
     composite3N: buildCompositeDetail(modularRatio * 3, '3n'),
-    compositeCr: buildCompositeDetail(modularRatio, 'cr'),
+    compositeCr: (() => {
+      const crackedComponents = [
+        {
+          name: 'Top slab reinforcement',
+          area: bars.top.areaPerInch,
+          y: bars.top.yCentroid,
+          iLocal: 0,
+        },
+        {
+          name: 'Bottom slab reinforcement',
+          area: bars.bottom.areaPerInch,
+          y: bars.bottom.yCentroid,
+          iLocal: 0,
+        },
+        ...steelComponents,
+      ];
+
+      const summary = summarizeSection(crackedComponents, {
+        topOfSlab: region.D + region.tHaunch + region.tSlab,
+        topOfSteel: region.D,
+        bottomOfSteel: 0,
+      });
+
+      const area = crackedComponents.reduce((sum, component) => sum + component.area, 0);
+      const ayb = crackedComponents.reduce((sum, component) => sum + (component.area * component.y), 0);
+      const cb = ayb / Math.max(area, EPSILON);
+      const hc = region.D + region.tHaunch + region.tSlab;
+      const ctSlab = Math.abs(hc - cb);
+      const ctBeam = Math.abs(ctSlab - region.tHaunch - region.tSlab);
+      const rows = buildExpandedRowsWithTopReference(crackedComponents, ctSlab, hc);
+      const i = rows.reduce((sum, row) => sum + row.ioPlusAd2, 0);
+
+      return {
+        ...summary,
+        rows,
+        totals: {
+          area,
+          ayb,
+          i,
+        },
+        c: {
+          bottom: Math.abs(cb),
+          topSlab: ctSlab,
+          beam: ctBeam,
+          depth: Math.abs(hc),
+        },
+        s: {
+          bottom: safeDivide(i, Math.abs(cb)),
+          topSlab: safeDivide(i, ctSlab),
+          topSteel: safeDivide(i, ctBeam),
+        },
+        i,
+        yBar: Math.abs(cb),
+        sectionModulus: {
+          bottomOfSteel: safeDivide(i, Math.abs(cb)),
+          topOfSlab: safeDivide(i, ctSlab),
+          topOfSteel: safeDivide(i, ctBeam),
+        },
+      };
+    })(),
   };
 }
 
@@ -335,7 +394,7 @@ export function computeSectionProps(input) {
   ];
 
   const regionsToRun = input.positiveSameAsNegative
-    ? [{ key: 'both', label: 'Both Regions', data: input.negative }]
+    ? [{ key: 'both', label: 'Positive and Negative Region', data: input.negative }]
     : [
       { key: 'negative', label: 'Negative Region', data: input.negative },
       { key: 'positive', label: 'Positive Region', data: input.positive },
@@ -390,7 +449,7 @@ export function computeSectionProps(input) {
       bottomOfSteel: 0,
     });
 
-    const plusMoment = computePositiveMomentDetailed(region, modularRatio);
+    const plusMoment = computePositiveMomentDetailed(region, modularRatio, bars);
     const compositeN = plusMoment.compositeN;
     const composite3N = plusMoment.composite3N;
     const compositeCr = plusMoment.compositeCr;

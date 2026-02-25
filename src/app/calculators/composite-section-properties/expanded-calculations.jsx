@@ -77,7 +77,11 @@ const sLabel = (descriptor, suffix) => <span>S<sub>{descriptor} {suffix}</sub></
 
 export function ExpandedCalculations({ regionResult }) {
   const plusMoment = regionResult.plusMoment;
-  const regionTitle = regionResult.key === 'positive' ? 'Positive Region' : 'Negative Region';
+  const regionTitle = regionResult.key === 'both'
+    ? 'Positive and Negative Region'
+    : regionResult.key === 'positive'
+      ? 'Positive Region'
+      : 'Negative Region';
 
   return (
     <div className={styles.calcGroups}>
