@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import styles from './page.module.css';
 
 const CALCULATOR_ID = 'composite-steel-girder-lrfd';
@@ -598,19 +599,19 @@ function PlaceholderSketch({ title, children }) {
 }
 
 const LIVE_LOAD_MOMENT_COLUMNS = [
-  { key: 'DC1', label: 'MDC1 (k-ft)', info: 'Moment from girder self-weight and attached steel.' },
-  { key: 'DC2', label: 'MDC2 (k-ft)', info: 'Moment from deck, barriers, and other permanent loads.' },
-  { key: 'DW', label: 'MDW (k-ft)', info: 'Moment from wearing surface.' },
-  { key: 'LL_truck', label: 'Mtruck (k-ft)', info: 'Moment from HL-93 design truck.' },
-  { key: 'LL_tandem', label: 'Mtandem (k-ft)', info: 'Moment from HL-93 design tandem.' },
+  { key: 'DC1', label: <span>M<sub>DC1</sub> (k-ft)</span>, info: 'Moment from girder self-weight and attached steel.' },
+  { key: 'DC2', label: <span>M<sub>DC2</sub> (k-ft)</span>, info: 'Moment from deck, barriers, and other permanent loads.' },
+  { key: 'DW', label: <span>M<sub>DW</sub> (k-ft)</span>, info: 'Moment from wearing surface.' },
+  { key: 'LL_truck', label: <span>M<sub>truck</sub> (k-ft)</span>, info: 'Moment from HL-93 design truck.' },
+  { key: 'LL_tandem', label: <span>M<sub>tandem</sub> (k-ft)</span>, info: 'Moment from HL-93 design tandem.' },
 ];
 
 const LIVE_LOAD_SHEAR_COLUMNS = [
-  { key: 'DC1', label: 'VDC1 (k)', info: 'Shear from girder self-weight and attached steel.' },
-  { key: 'DC2', label: 'VDC2 (k)', info: 'Shear from deck, barriers, and other permanent loads.' },
-  { key: 'DW', label: 'VDW (k)', info: 'Shear from wearing surface.' },
-  { key: 'LL_truck', label: 'Vtruck (k)', info: 'Shear from HL-93 design truck.' },
-  { key: 'LL_tandem', label: 'Vtandem (k)', info: 'Shear from HL-93 design tandem.' },
+  { key: 'DC1', label: <span>V<sub>DC1</sub> (k)</span>, info: 'Shear from girder self-weight and attached steel.' },
+  { key: 'DC2', label: <span>V<sub>DC2</sub> (k)</span>, info: 'Shear from deck, barriers, and other permanent loads.' },
+  { key: 'DW', label: <span>V<sub>DW</sub> (k)</span>, info: 'Shear from wearing surface.' },
+  { key: 'LL_truck', label: <span>V<sub>truck</sub> (k)</span>, info: 'Shear from HL-93 design truck.' },
+  { key: 'LL_tandem', label: <span>V<sub>tandem</sub> (k)</span>, info: 'Shear from HL-93 design tandem.' },
 ];
 
 function LabelWithInfo({ label, info }) {
@@ -625,7 +626,7 @@ function LabelWithInfo({ label, info }) {
 function InfoTooltip({ text }) {
   const [open, setOpen] = useState(false);
   const [renderBelow, setRenderBelow] = useState(false);
-  const [horizontalNudgePx, setHorizontalNudgePx] = useState(0);
+  const [popoverPosition, setPopoverPosition] = useState({ left: 0, top: 0 });
   const tooltipId = useId();
   const containerRef = useRef(null);
   const popoverRef = useRef(null);
@@ -659,22 +660,42 @@ function InfoTooltip({ text }) {
   }, [open]);
 
   useLayoutEffect(() => {
-    if (!open || !popoverRef.current) {
-      return;
+    if (!open || !containerRef.current || !popoverRef.current) {
+      return undefined;
     }
 
-    const popoverRect = popoverRef.current.getBoundingClientRect();
     const margin = 12;
-    const leftOverflow = Math.max(0, margin - popoverRect.left);
-    const rightOverflow = Math.max(0, popoverRect.right - (window.innerWidth - margin));
 
-    if (leftOverflow > 0 || rightOverflow > 0) {
-      setHorizontalNudgePx(leftOverflow - rightOverflow);
-    } else {
-      setHorizontalNudgePx(0);
-    }
+    const updatePopoverPlacement = () => {
+      if (!containerRef.current || !popoverRef.current) {
+        return;
+      }
 
-    setRenderBelow(popoverRect.top < margin);
+      const triggerRect = containerRef.current.getBoundingClientRect();
+      const popoverRect = popoverRef.current.getBoundingClientRect();
+      const shouldRenderBelow = triggerRect.top - popoverRect.height - margin < 0;
+
+      const rawLeft = triggerRect.left + triggerRect.width / 2 - popoverRect.width / 2;
+      const clampedLeft = Math.min(
+        Math.max(rawLeft, margin),
+        window.innerWidth - popoverRect.width - margin,
+      );
+      const top = shouldRenderBelow
+        ? triggerRect.bottom + margin
+        : triggerRect.top - popoverRect.height - margin;
+
+      setRenderBelow(shouldRenderBelow);
+      setPopoverPosition({ left: clampedLeft, top: Math.max(margin, top) });
+    };
+
+    updatePopoverPlacement();
+    window.addEventListener('resize', updatePopoverPlacement);
+    window.addEventListener('scroll', updatePopoverPlacement, true);
+
+    return () => {
+      window.removeEventListener('resize', updatePopoverPlacement);
+      window.removeEventListener('scroll', updatePopoverPlacement, true);
+    };
   }, [open, text]);
 
   return (
@@ -694,17 +715,20 @@ function InfoTooltip({ text }) {
       >
         i
       </button>
-      {open ? (
-        <span
-          role="tooltip"
-          id={tooltipId}
-          ref={popoverRef}
-          className={`${styles.infoPopover} ${renderBelow ? styles.infoPopoverBelow : styles.infoPopoverAbove}`}
-          style={{ '--tooltip-x-nudge': `${horizontalNudgePx}px` }}
-        >
-          {text}
-        </span>
-      ) : null}
+      {open
+        ? createPortal(
+          <span
+            role="tooltip"
+            id={tooltipId}
+            ref={popoverRef}
+            className={`${styles.infoPopover} ${renderBelow ? styles.infoPopoverBelow : styles.infoPopoverAbove}`}
+            style={{ left: `${popoverPosition.left}px`, top: `${popoverPosition.top}px` }}
+          >
+            {text}
+          </span>,
+          document.body,
+        )
+        : null}
     </span>
   );
 }
@@ -1455,7 +1479,7 @@ export default function CompositeSteelGirderLrfdPage() {
                       {!project.schedules.sectionConstant && (
                         <div className={styles.sectionRowTitle}>Section {index + 1}</div>
                       )}
-                      <label className={styles.inlineField}><LabelWithInfo label="Label" info="Assign a label to this section" /><input value={section.name} onChange={(event) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, sectionLabels: current.schedules.sectionLabels.map((entry) => entry.id === section.id ? { ...entry, name: event.target.value } : entry) } }))} /></label>
+                      <label className={styles.field}><LabelWithInfo label="Label" info="Assign a label to this section" /><input value={section.name} onChange={(event) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, sectionLabels: current.schedules.sectionLabels.map((entry) => entry.id === section.id ? { ...entry, name: event.target.value } : entry) } }))} /></label>
                       {[
                         ['D_in', <LabelWithInfo label="D (in)" info="Depth of steel beam in inches" />],
                         ['tw_in', <LabelWithInfo label={<span>t<sub>w</sub> (in)</span>} info="Web thickness in inches" />],
@@ -1464,7 +1488,7 @@ export default function CompositeSteelGirderLrfdPage() {
                         ['tf_bot_in', <LabelWithInfo label={<span>t<sub>f_bot</sub> (in)</span>} info="Bottom flange thickness in inches" />],
                         ['bf_bot_in', <LabelWithInfo label={<span>b<sub>f_bot</sub> (in)</span>} info="Bottom flange width in inches" />],
                       ].map(([key, title]) => (
-                        <label className={styles.inlineField} key={`${section.id}-${key}`}>
+                        <label className={styles.field} key={`${section.id}-${key}`}>
                           {title}
                           <NumericInput value={section[key]} onCommit={(value) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, sectionLabels: current.schedules.sectionLabels.map((entry) => entry.id === section.id ? { ...entry, [key]: value } : entry) } }))} />
                         </label>
@@ -1617,9 +1641,9 @@ export default function CompositeSteelGirderLrfdPage() {
 
             {(project.schedules.studLayout?.simpleLayout ?? true) && (
               <div className={styles.inlineInputsRow}>
-                <label className={styles.inlineField}><LabelWithInfo label="# of Studs" info="Number of shear studs per row" /><NumericInput className={styles.smallInput} value={project.schedules.studLayout?.constants?.studsPerRow} onCommit={(value) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, studLayout: { ...current.schedules.studLayout, constants: { ...current.schedules.studLayout.constants, studsPerRow: value } } } }))} /></label>
-                <label className={styles.inlineField}><LabelWithInfo label={<span>D<sub>stud</sub> (in)</span>} info="Diameter of shear stud in inches" /><NumericInput className={styles.smallInput} value={project.schedules.studLayout?.constants?.diameter_in} onCommit={(value) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, studLayout: { ...current.schedules.studLayout, constants: { ...current.schedules.studLayout.constants, diameter_in: value } } } }))} /></label>
-                <label className={styles.inlineField}><LabelWithInfo label={<span>F<sub>y_stud</sub> (ksi)</span>} info="Yield strength of shear stud in ksi" /><NumericInput className={styles.smallInput} value={project.schedules.studLayout?.constants?.Fy_ksi} onCommit={(value) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, studLayout: { ...current.schedules.studLayout, constants: { ...current.schedules.studLayout.constants, Fy_ksi: value } } } }))} /></label>
+                <label className={styles.field}><LabelWithInfo label="# of Studs" info="Number of shear studs per row" /><NumericInput className={styles.smallInput} value={project.schedules.studLayout?.constants?.studsPerRow} onCommit={(value) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, studLayout: { ...current.schedules.studLayout, constants: { ...current.schedules.studLayout.constants, studsPerRow: value } } } }))} /></label>
+                <label className={styles.field}><LabelWithInfo label={<span>D<sub>stud</sub> (in)</span>} info="Diameter of shear stud in inches" /><NumericInput className={styles.smallInput} value={project.schedules.studLayout?.constants?.diameter_in} onCommit={(value) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, studLayout: { ...current.schedules.studLayout, constants: { ...current.schedules.studLayout.constants, diameter_in: value } } } }))} /></label>
+                <label className={styles.field}><LabelWithInfo label={<span>F<sub>y_stud</sub> (ksi)</span>} info="Yield strength of shear stud in ksi" /><NumericInput className={styles.smallInput} value={project.schedules.studLayout?.constants?.Fy_ksi} onCommit={(value) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, studLayout: { ...current.schedules.studLayout, constants: { ...current.schedules.studLayout.constants, Fy_ksi: value } } } }))} /></label>
               </div>
             )}
 
@@ -1671,7 +1695,7 @@ export default function CompositeSteelGirderLrfdPage() {
           <section className={styles.card}>
             <h3 className={styles.sectionTitle}>Diaphragm Location</h3>
             <div className={`${styles.inlineInputsRow} ${styles.buttonRowSpacing}`}>
-              <label className={styles.inlineField}>
+              <label className={styles.field}>
                 <LabelWithInfo label="# of Diaphragms" info="Number of diphragms" />
                 <NumericInput
                   className={styles.smallInput}
