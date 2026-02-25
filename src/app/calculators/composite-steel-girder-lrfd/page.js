@@ -587,6 +587,13 @@ function NumericInput({ value, onCommit, disabled = false, className = '' }) {
         onCommit(parsed);
         setDraft(toInputValue(parsed));
       }}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === 'Tab') {
+          const parsed = toNullableNumber(draft);
+          onCommit(parsed);
+          setDraft(toInputValue(parsed));
+        }
+      }}
     />
   );
 }
@@ -1249,7 +1256,7 @@ export default function CompositeSteelGirderLrfdPage() {
                     <h4>Locate Sections</h4>
                     {sectionLocateError && <div className={`${styles.callout} ${styles.warning}`}>{sectionLocateError}</div>}
                     <div className={styles.tableWrap}>
-                      <table className={styles.table}>
+                      <table className={`${styles.table} ${styles.compactTable}`}>
                         <thead><tr><th>Section Label</th><th>Start Location</th><th>End Location</th><th /></tr></thead>
                         <tbody>
                           {(project.schedules.sectionLocateSegments || []).map((locationRow) => {
@@ -1260,6 +1267,7 @@ export default function CompositeSteelGirderLrfdPage() {
                             <tr key={locationRow.id}>
                               <td>
                                 <select
+                                  className={`${styles.pillSelect} ${styles.sectionSelect}`}
                                   value={locationRow.labelId}
                                   onChange={(event) =>
                                     updateProject((current) => ({
@@ -1316,7 +1324,7 @@ export default function CompositeSteelGirderLrfdPage() {
 
           <section className={styles.card}>
             <h3 className={styles.sectionTitle}>Stud Layouts</h3>
-            <div className={styles.inlineInputsRow}>
+            <div className={`${styles.inlineInputsRow} ${styles.buttonRowSpacing}`}>
               <span>Simple layout</span>
               <ToggleChoice
                 value={project.schedules.studLayout?.simpleLayout ?? true}
@@ -1338,12 +1346,12 @@ export default function CompositeSteelGirderLrfdPage() {
             {(project.schedules.studLayout?.simpleLayout ?? true) && (
               <div className={styles.inlineInputsRow}>
                 <label className={styles.inlineField}># of studs per row<NumericInput className={styles.smallInput} value={project.schedules.studLayout?.constants?.studsPerRow} onCommit={(value) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, studLayout: { ...current.schedules.studLayout, constants: { ...current.schedules.studLayout.constants, studsPerRow: value } } } }))} /></label>
-                <label className={styles.inlineField}>Stud dia (in)<NumericInput className={styles.smallInput} value={project.schedules.studLayout?.constants?.diameter_in} onCommit={(value) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, studLayout: { ...current.schedules.studLayout, constants: { ...current.schedules.studLayout.constants, diameter_in: value } } } }))} /></label>
+                <label className={styles.inlineField}>Stud Diameter (in)<NumericInput className={styles.smallInput} value={project.schedules.studLayout?.constants?.diameter_in} onCommit={(value) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, studLayout: { ...current.schedules.studLayout, constants: { ...current.schedules.studLayout.constants, diameter_in: value } } } }))} /></label>
                 <label className={styles.inlineField}>F<sub>y</sub> (ksi)<NumericInput className={styles.smallInput} value={project.schedules.studLayout?.constants?.Fy_ksi} onCommit={(value) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, studLayout: { ...current.schedules.studLayout, constants: { ...current.schedules.studLayout.constants, Fy_ksi: value } } } }))} /></label>
               </div>
             )}
 
-            <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>Name</th><th>Start Location</th><th>End Location</th><th>Spacing</th>{!(project.schedules.studLayout?.simpleLayout ?? true) && <><th># of studs per row</th><th>Stud Diameter (in)</th><th>F<sub>y</sub> (ksi)</th></>}</tr></thead><tbody>
+            <div className={styles.tableWrap}><table className={`${styles.table} ${styles.compactTable}`}><thead><tr><th>Name</th><th>Start Location</th><th>End Location</th><th>Spacing</th>{!(project.schedules.studLayout?.simpleLayout ?? true) && <><th># of studs per row</th><th>Stud Diameter (in)</th><th>F<sub>y</sub> (ksi)</th></>}</tr></thead><tbody>
               {(project.schedules.studLayout?.rows || []).map((row, idx) => (
                 <tr key={row.id}><td>{row.name}</td>
                   <td><NumericInput value={row.startX_ft} onCommit={(value)=>updateProject((current)=>({ ...current, schedules:{...current.schedules, studLayout:{...current.schedules.studLayout, rows: current.schedules.studLayout.rows.map((entry, i)=> i===idx ? {...entry,startX_ft: value}:entry)}}}))} /></td>
@@ -1362,19 +1370,19 @@ export default function CompositeSteelGirderLrfdPage() {
             <PlaceholderSketch title="Stud Layout">
               <svg viewBox="0 0 320 180" width="100%" height="180">
                 <rect width="320" height="180" fill="white" />
-                <rect x="40" y="118" width="240" height="12" fill="#9ca3af" stroke="black" strokeWidth="1.5" />
-                <rect x="150" y="84" width="20" height="34" fill="#9ca3af" stroke="black" strokeWidth="1.5" />
-                <rect x="40" y="130" width="240" height="12" fill="#9ca3af" stroke="black" strokeWidth="1.5" />
+                <rect x="70" y="98" width="180" height="14" fill="#9ca3af" stroke="black" strokeWidth="1.5" />
+                <rect x="151" y="112" width="18" height="34" fill="#9ca3af" stroke="black" strokeWidth="1.5" />
+                <rect x="78" y="146" width="164" height="14" fill="#9ca3af" stroke="black" strokeWidth="1.5" />
                 {(() => {
                   const studCount = Math.max(0, Math.floor(toNumber(project.schedules.studLayout?.constants?.studsPerRow, 0)));
-                  const spacing = studCount <= 1 ? 0 : 180 / (studCount - 1);
+                  const spacing = studCount <= 1 ? 0 : 140 / (studCount - 1);
                   const firstX = 160 - (spacing * (studCount - 1)) / 2;
                   return Array.from({ length: studCount }, (_, idx) => {
                     const x = firstX + idx * spacing;
                     return (
                       <g key={`stud-${idx}`}>
-                        <rect x={x - 3} y="80" width="6" height="30" fill="#374151" />
-                        <rect x={x - 5} y="74" width="10" height="6" fill="#6b7280" />
+                        <rect x={x - 3} y="68" width="6" height="30" fill="#374151" />
+                        <rect x={x - 5} y="62" width="10" height="6" fill="#6b7280" />
                       </g>
                     );
                   });
@@ -1385,7 +1393,7 @@ export default function CompositeSteelGirderLrfdPage() {
 
           <section className={styles.card}>
             <h3 className={styles.sectionTitle}>Diaphragm Location</h3>
-            <div className={styles.inlineInputsRow}>
+            <div className={`${styles.inlineInputsRow} ${styles.buttonRowSpacing}`}>
               <label className={styles.inlineField}>
                 Number of diaphragms
                 <NumericInput
@@ -1407,7 +1415,7 @@ export default function CompositeSteelGirderLrfdPage() {
               <button type="button" className={styles.secondaryButton} onClick={() => updateProject((current) => ({ ...current, schedules: { ...current.schedules, diaphragmLocations: current.schedules.diaphragmLocations.length > 1 ? current.schedules.diaphragmLocations.slice(0, -1) : current.schedules.diaphragmLocations } }))}>Remove</button>
             </div>
             <div className={styles.tableWrap}>
-              <table className={styles.table}><thead><tr><th>Diaphragm</th><th>Location (ft) <span className={styles.infoIcon}>i<span className={styles.tooltipBox}>Distance from Abutment 1</span></span></th></tr></thead><tbody>
+              <table className={`${styles.table} ${styles.compactTable}`}><thead><tr><th>Diaphragm</th><th>Location (ft) <span className={styles.infoIcon}>i<span className={styles.tooltipBox}>Distance from Abutment 1</span></span></th></tr></thead><tbody>
                 {project.schedules.diaphragmLocations.map((row, index) => (
                   <tr key={row.id}>
                     <td>D{index + 1}</td>
@@ -1459,7 +1467,7 @@ export default function CompositeSteelGirderLrfdPage() {
                     );
                   });
 
-                  return [...diaphragmGroups, ...supportGroups];
+                  return [...supportGroups, ...diaphragmGroups];
                 })()}
               </svg>
               <h4 className={styles.diagramLabel}>Structural Steel Plan</h4>
@@ -1482,7 +1490,7 @@ export default function CompositeSteelGirderLrfdPage() {
                   <div className={styles.grid4}>
                     <label className={styles.field}>
                       Bar size (primary)
-                      <select className={styles.toggleButton}
+                      <select className={styles.pillSelect}
                         value={group.primaryBar}
                         onChange={(event) =>
                           updateProject((current) => ({
@@ -1516,7 +1524,7 @@ export default function CompositeSteelGirderLrfdPage() {
                       />
                     </label>
                   </div>
-                  <div className={styles.inlineInputsRow}>
+                  <div className={`${styles.inlineInputsRow} ${styles.buttonRowSpacing}`}>
                     <span>Alternating bars</span>
                     <ToggleChoice
                       value={group.alternating}
@@ -1536,7 +1544,7 @@ export default function CompositeSteelGirderLrfdPage() {
                       <div className={styles.grid4}>
                         <label className={styles.field}>
                           Bar size (secondary)
-                          <select className={styles.toggleButton}
+                          <select className={styles.pillSelect}
                             value={group.secondaryBar || ''}
                             onChange={(event) =>
                               updateProject((current) => ({
@@ -1567,9 +1575,9 @@ export default function CompositeSteelGirderLrfdPage() {
           <section className={styles.card}>
             <h3 className={styles.sectionTitle}>Materials</h3>
             <div className={styles.grid3}>
-              <label className={styles.field}>Steel Fy (ksi)<NumericInput value={project.materials.Fy_ksi} onCommit={(value) => updateProject((current) => ({ ...current, materials: { ...current.materials, Fy_ksi: value } }))} /></label>
-              <label className={styles.field}>Concrete f’c (ksi)<NumericInput value={project.materials.fc_ksi} onCommit={(value) => updateProject((current) => ({ ...current, materials: { ...current.materials, fc_ksi: value } }))} /></label>
-              <label className={styles.field}>Es (ksi)<NumericInput value={project.materials.Es_ksi} onCommit={(value) => updateProject((current) => ({ ...current, materials: { ...current.materials, Es_ksi: value } }))} /></label>
+              <label className={styles.field}>Steel F<sub>y</sub> (ksi)<NumericInput value={project.materials.Fy_ksi} onCommit={(value) => updateProject((current) => ({ ...current, materials: { ...current.materials, Fy_ksi: value } }))} /></label>
+              <label className={styles.field}>Concrete f'<sub>c</sub> (ksi)<NumericInput value={project.materials.fc_ksi} onCommit={(value) => updateProject((current) => ({ ...current, materials: { ...current.materials, fc_ksi: value } }))} /></label>
+              <label className={styles.field}>E<sub>s</sub> (ksi)<NumericInput value={project.materials.Es_ksi} onCommit={(value) => updateProject((current) => ({ ...current, materials: { ...current.materials, Es_ksi: value } }))} /></label>
             </div>
           </section>
 
@@ -1589,7 +1597,7 @@ export default function CompositeSteelGirderLrfdPage() {
             <h3 className={styles.sectionTitle}>Live Loads from STAAD</h3>
             <p className={styles.muted}>Enter undistributed and unfactored moments and shears. At Piers, the maximum -M shall be entered and near midspans, the maximum +M shall be entered.</p>
             <div className={styles.tableWrap}>
-              <table className={styles.table}>
+              <table className={`${styles.table} ${styles.narrowTable}`}>
                 <thead>
                   <tr>
                     <th>Location</th>
@@ -1606,6 +1614,7 @@ export default function CompositeSteelGirderLrfdPage() {
                         {location.type === 'span' ? (
                           <div className={styles.xGlobalInputCell}>
                             <NumericInput
+                              className={styles.narrowXInput}
                               value={location.x_global_ft}
                               onCommit={(value) =>
                                 updateProject((current) => {
@@ -1616,7 +1625,7 @@ export default function CompositeSteelGirderLrfdPage() {
                               }
                               disabled={project.geometry.spanPoints[location.spanIndex]?.momentAtMid}
                             />
-                            <div className={styles.inlineInputsRow}>
+                            <div className={styles.compactToggleRow}>
                               <span>midspan</span>
                               <ToggleChoice
                                 value={Boolean(project.geometry.spanPoints[location.spanIndex]?.momentAtMid)}
