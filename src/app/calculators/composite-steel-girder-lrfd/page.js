@@ -1379,12 +1379,29 @@ export default function CompositeSteelGirderLrfdPage() {
                   const totalWidth = Math.max(1, leftOverhang + girderWidth + rightOverhang);
                   const deckStartX = 60;
                   const deckWidth = 700;
+                  const deckEndX = deckStartX + deckWidth;
+                  const formatDimension = (value) => `${formatDisplay(value)} ft`;
                   let cursor = deckStartX + (leftOverhang / totalWidth) * deckWidth;
                   const girderXs = Array.from({ length: girderCount }, (_, index) => {
                     if (index === 0) return cursor;
                     cursor += (spacingValues[index - 1] / totalWidth) * deckWidth;
                     return cursor;
                   });
+                  const dimensionY = 214;
+                  const overhangLabels = [
+                    {
+                      x: (deckStartX + girderXs[0]) / 2,
+                      label: formatDimension(leftOverhang),
+                    },
+                    {
+                      x: (girderXs[girderXs.length - 1] + deckEndX) / 2,
+                      label: formatDimension(rightOverhang),
+                    },
+                  ];
+                  const spacingLabels = spacingValues.map((spacing, index) => ({
+                    x: (girderXs[index] + girderXs[index + 1]) / 2,
+                    label: formatDimension(spacing),
+                  }));
                   return (
                     <>
                       <rect x={deckStartX} y="70" width={deckWidth} height="20" fill="#e5e7eb" stroke="black" strokeWidth="1.5" />
@@ -1394,6 +1411,32 @@ export default function CompositeSteelGirderLrfdPage() {
                           <rect x={x - 5} y="105" width="10" height="74" fill="#9ca3af" stroke="black" strokeWidth="1.5" />
                           <rect x={x - 24} y="179" width="48" height="10" fill="#9ca3af" stroke="black" strokeWidth="1.5" />
                         </g>
+                      ))}
+                      {overhangLabels.map((dimension, index) => (
+                        <text
+                          key={`overhang-dimension-${index}`}
+                          x={dimension.x}
+                          y={dimensionY}
+                          textAnchor="middle"
+                          fontSize="13"
+                          fontWeight="600"
+                          fill="#1f2937"
+                        >
+                          {dimension.label}
+                        </text>
+                      ))}
+                      {spacingLabels.map((dimension, index) => (
+                        <text
+                          key={`spacing-dimension-${index}`}
+                          x={dimension.x}
+                          y={dimensionY}
+                          textAnchor="middle"
+                          fontSize="13"
+                          fontWeight="600"
+                          fill="#1f2937"
+                        >
+                          {dimension.label}
+                        </text>
                       ))}
                     </>
                   );
