@@ -382,7 +382,8 @@
   top: calc(100% + 0.4rem);
   left: 50%;
   transform: translateX(-50%);
-  width: min(240px, 65vw);
+  width: clamp(220px, 32vw, 320px);
+  max-width: calc(100vw - 2rem);
   padding: 0.45rem 0.55rem;
   border-radius: 10px;
   border: 1px solid #dbe2ea;
@@ -391,6 +392,8 @@
   color: #334155;
   font-size: 0.78rem;
   line-height: 1.35;
+  white-space: normal;
+  overflow-wrap: break-word;
   z-index: 10;
 }
 
