@@ -123,8 +123,7 @@ function createInitialProject() {
       modifiedAt: created,
       signConventionNote: SIGN_CONVENTION_NOTE,
       coordinateNote: 'X is measured from Abutment A (0 ft) along the bridge centerline.',
-      liveLoadNote:
-        'Live Load is assumed identical for all girders; design typically governed by the girder with higher dead load (commonly interior).',
+      liveLoadNote: '',
     },
     settings: {
       allowEditingInputsOnOtherTabs: false,
@@ -178,11 +177,10 @@ function createInitialProject() {
     autoDeadLoad: {
       deckThickness_in: 8,
       haunchThickness_in: 2,
-      wearingSurfaceThickness_in: 0,
-      parapetRailLineLoad_kft: 0,
-      sipForms_psf: 0,
-      steelUnitWeight_pcf: 490,
-      verifiedByUser: false,
+      wearingSurface_psf: 0,
+      parapet_plf: 0,
+      steelDensity_pcf: 490,
+      concreteDensity_pcf: 150,
     },
     demandByLocation: {},
     comboOverridesByLocation: {},
@@ -539,17 +537,14 @@ function computeAutoDeadLoad(project) {
   const inputs = project.autoDeadLoad;
   const effectiveWidth = Math.max(spacing, 0);
   const deckAndHaunch_ft = (toNumber(inputs.deckThickness_in) + toNumber(inputs.haunchThickness_in)) / 12;
-  const wearing_ft = toNumber(inputs.wearingSurfaceThickness_in) / 12;
 
-  const concreteWeight_pcf = 150;
-  const wearingWeight_pcf = 140;
+  const concreteDensity = toNumber(inputs.concreteDensity_pcf, 150);
+  const deckLineLoad = effectiveWidth * deckAndHaunch_ft * concreteDensity / 1000;
+  const parapet_kft = toNumber(inputs.parapet_plf) / 1000;
+  const wearingLineLoad = (toNumber(inputs.wearingSurface_psf) * effectiveWidth) / 1000;
 
-  const deckLineLoad = effectiveWidth * deckAndHaunch_ft * concreteWeight_pcf / 1000;
-  const wearingLineLoad = effectiveWidth * wearing_ft * wearingWeight_pcf / 1000;
-  const sipForms_kft = (toNumber(inputs.sipForms_psf) * effectiveWidth) / 1000;
-
-  const DC_line_kft = round(deckLineLoad + toNumber(inputs.parapetRailLineLoad_kft), 4);
-  const DW_line_kft = round(wearingLineLoad + sipForms_kft, 4);
+  const DC_line_kft = round(deckLineLoad + parapet_kft, 4);
+  const DW_line_kft = round(wearingLineLoad, 4);
 
   return { DC_line_kft, DW_line_kft };
 }
@@ -572,7 +567,7 @@ function Symbol({ label, sub }) {
   );
 }
 
-function NumericInput({ value, onCommit, disabled = false, className = "" }) {
+function NumericInput({ value, onCommit, disabled = false, className = '' }) {
   const [draft, setDraft] = useState(toInputValue(value));
 
   useEffect(() => {
@@ -593,6 +588,28 @@ function NumericInput({ value, onCommit, disabled = false, className = "" }) {
         setDraft(toInputValue(parsed));
       }}
     />
+  );
+}
+
+
+function ToggleChoice({ value, onChange, yesLabel = 'Yes', noLabel = 'No' }) {
+  return (
+    <div className={styles.toggleButtonGroup}>
+      <button
+        type="button"
+        className={`${styles.toggleButton} ${value ? styles.toggleButtonActive : ''}`}
+        onClick={() => onChange(true)}
+      >
+        {yesLabel}
+      </button>
+      <button
+        type="button"
+        className={`${styles.toggleButton} ${!value ? styles.toggleButtonActive : ''}`}
+        onClick={() => onChange(false)}
+      >
+        {noLabel}
+      </button>
+    </div>
   );
 }
 
@@ -636,7 +653,6 @@ export default function CompositeSteelGirderLrfdPage() {
   }, [project]);
 
   const combos = useMemo(() => buildFactoredCombinations(project.demandByLocation), [project.demandByLocation]);
-  const deadLoads = useMemo(() => computeAutoDeadLoad(project), [project]);
 
   const updateProject = (updater) => {
     setProject((current) => {
@@ -712,11 +728,7 @@ export default function CompositeSteelGirderLrfdPage() {
 
     return (
       <>
-        {!project.autoDeadLoad.verifiedByUser && (
-          <div className={`${styles.callout} ${styles.warning}`}>
-            Results are scaffold-only. Please acknowledge auto-computed DC/DW on Inputs first.
-          </div>
-        )}
+
         <section className={styles.card}>
           <h3 className={styles.sectionTitle}>Read-only input summary</h3>
           <div className={styles.grid4}>
@@ -878,10 +890,12 @@ export default function CompositeSteelGirderLrfdPage() {
       {activeTab === 'Inputs' ? (
         <>
           <section className={styles.card}>
-            <h3 className={styles.sectionTitle}>General / Geometry</h3>
+            <h3 className={styles.sectionTitle}>General Input</h3>
+
+            <h4>Spans</h4>
             <div className={styles.grid4}>
               <label className={styles.field}>
-                Number of spans
+                # of spans
                 <NumericInput
                   value={project.geometry.numberOfSpans}
                   onCommit={(value) => {
@@ -906,56 +920,6 @@ export default function CompositeSteelGirderLrfdPage() {
                   disabled={allTabsReadOnly}
                 />
               </label>
-
-              <label className={styles.field}>
-                Skew (deg)
-                <NumericInput value={project.geometry.skew_deg} onCommit={(value) => updateProject((current) => ({ ...current, geometry: { ...current.geometry, skew_deg: value } }))} />
-              </label>
-
-              <label className={styles.field}>
-                Number of girders
-                <NumericInput
-                  value={project.geometry.numberOfGirders}
-                  onCommit={(value) => {
-                    const girders = Math.max(1, Math.floor(toNumber(value, 1)));
-                    updateProject((current) => ({
-                      ...current,
-                      geometry: {
-                        ...current.geometry,
-                        numberOfGirders: girders,
-                        spacingArray_ft: resizeArray(current.geometry.spacingArray_ft, Math.max(0, girders - 1), current.geometry.spacing_ft),
-                      },
-                    }));
-                  }}
-                />
-              </label>
-
-              <label className={styles.inlineCheckbox}>
-                <input type="checkbox" checked={project.geometry.constantSpacing} onChange={(event) => updateProject((current) => ({ ...current, geometry: { ...current.geometry, constantSpacing: event.target.checked } }))} />
-                Constant spacing
-              </label>
-            </div>
-
-            <h4>Span lengths</h4>
-            <label className={styles.inlineCheckbox}>
-              <input
-                type="checkbox"
-                checked={Boolean(project.geometry.overhangsVary)}
-                onChange={(event) =>
-                  updateProject((current) => ({
-                    ...current,
-                    geometry: {
-                      ...current.geometry,
-                      overhangsVary: event.target.checked,
-                      overhangLeft_ft: event.target.checked ? current.geometry.overhangLeft_ft : current.geometry.overhangLength_ft,
-                      overhangRight_ft: event.target.checked ? current.geometry.overhangRight_ft : current.geometry.overhangLength_ft,
-                    },
-                  }))
-                }
-              />
-              Overhang lengths vary
-            </label>
-            <div className={styles.grid4}>
               {project.geometry.spanLengths_ft.map((span, index) => (
                 <label key={`span-${index}`} className={styles.field}>
                   Span {index + 1} (ft)
@@ -976,21 +940,36 @@ export default function CompositeSteelGirderLrfdPage() {
                   />
                 </label>
               ))}
+            </div>
+
+            <h4><strong>Overhang Length</strong></h4>
+            <div className={styles.inlineInputsRow}>
+              <span>Overhang lengths vary</span>
+              <ToggleChoice
+                value={Boolean(project.geometry.overhangsVary)}
+                onChange={(nextChecked) =>
+                  updateProject((current) => ({
+                    ...current,
+                    geometry: {
+                      ...current.geometry,
+                      overhangsVary: nextChecked,
+                      overhangLeft_ft: nextChecked ? current.geometry.overhangLeft_ft : current.geometry.overhangLength_ft,
+                      overhangRight_ft: nextChecked ? current.geometry.overhangRight_ft : current.geometry.overhangLength_ft,
+                    },
+                  }))
+                }
+              />
+            </div>
+            <div className={styles.grid4}>
               {project.geometry.overhangsVary ? (
                 <>
                   <label className={styles.field}>
                     Left overhang (ft)
-                    <NumericInput
-                      value={project.geometry.overhangLeft_ft}
-                      onCommit={(value) => updateProject((current) => ({ ...current, geometry: { ...current.geometry, overhangLeft_ft: value } }))}
-                    />
+                    <NumericInput value={project.geometry.overhangLeft_ft} onCommit={(value) => updateProject((current) => ({ ...current, geometry: { ...current.geometry, overhangLeft_ft: value } }))} />
                   </label>
                   <label className={styles.field}>
                     Right overhang (ft)
-                    <NumericInput
-                      value={project.geometry.overhangRight_ft}
-                      onCommit={(value) => updateProject((current) => ({ ...current, geometry: { ...current.geometry, overhangRight_ft: value } }))}
-                    />
+                    <NumericInput value={project.geometry.overhangRight_ft} onCommit={(value) => updateProject((current) => ({ ...current, geometry: { ...current.geometry, overhangRight_ft: value } }))} />
                   </label>
                 </>
               ) : (
@@ -998,26 +977,43 @@ export default function CompositeSteelGirderLrfdPage() {
                   Overhang length (ft)
                   <NumericInput
                     value={project.geometry.overhangLength_ft}
-                    onCommit={(value) =>
-                      updateProject((current) => ({
-                        ...current,
-                        geometry: {
-                          ...current.geometry,
-                          overhangLength_ft: value,
-                          overhangLeft_ft: value,
-                          overhangRight_ft: value,
-                        },
-                      }))
-                    }
+                    onCommit={(value) => updateProject((current) => ({ ...current, geometry: { ...current.geometry, overhangLength_ft: value, overhangLeft_ft: value, overhangRight_ft: value } }))}
                   />
                 </label>
               )}
             </div>
 
-            <h4>Girder spacing</h4>
+            <h4>Girders</h4>
+            <div className={styles.grid4}>
+              <label className={styles.field}>
+                # of girders
+                <NumericInput
+                  value={project.geometry.numberOfGirders}
+                  onCommit={(value) => {
+                    const girders = Math.max(1, Math.floor(toNumber(value, 1)));
+                    updateProject((current) => ({
+                      ...current,
+                      geometry: {
+                        ...current.geometry,
+                        numberOfGirders: girders,
+                        spacingArray_ft: resizeArray(current.geometry.spacingArray_ft, Math.max(0, girders - 1), current.geometry.spacing_ft),
+                      },
+                    }));
+                  }}
+                />
+              </label>
+              <label className={styles.field}>
+                Skew (deg)
+                <NumericInput value={project.geometry.skew_deg} onCommit={(value) => updateProject((current) => ({ ...current, geometry: { ...current.geometry, skew_deg: value } }))} />
+              </label>
+            </div>
+            <div className={styles.inlineInputsRow}>
+              <span>Constant spacing</span>
+              <ToggleChoice value={project.geometry.constantSpacing} onChange={(nextChecked) => updateProject((current) => ({ ...current, geometry: { ...current.geometry, constantSpacing: nextChecked } }))} />
+            </div>
             {project.geometry.constantSpacing ? (
               <label className={styles.field}>
-                Constant spacing (ft)
+                Spacing (ft)
                 <NumericInput
                   value={project.geometry.spacing_ft}
                   onCommit={(value) =>
@@ -1039,7 +1035,7 @@ export default function CompositeSteelGirderLrfdPage() {
               <div className={styles.grid4}>
                 {resizeArray(project.geometry.spacingArray_ft, Math.max(0, project.geometry.numberOfGirders - 1), project.geometry.spacing_ft).map((value, index) => (
                   <label className={styles.field} key={`spacing-${index}`}>
-                    Between Girder {index + 1} & {index + 2} (ft)
+                    Girder {index + 1} to {index + 2} (ft)
                     <NumericInput
                       value={value}
                       onCommit={(nextValue) =>
@@ -1108,18 +1104,25 @@ export default function CompositeSteelGirderLrfdPage() {
               </svg>
             </PlaceholderSketch>
 
-            <PlaceholderSketch title="Cross Section">
+            <div className={styles.svgBlock}>
+              <h4 className={styles.diagramLabel}>Cross Section</h4>
+              <p className={styles.diagramSubLabel}>{formatDisplay(project.geometry.numberOfGirders, 0)} Girders</p>
               <svg viewBox="0 0 820 230" width="100%" height="230" role="img" aria-label="Bridge cross section">
                 <rect width="820" height="230" fill="white" />
-                <path d="M60 70 Q410 30 760 70 L760 88 L60 88 Z" fill="#e5e7eb" stroke="black" strokeWidth="2" />
+                <rect x="60" y="70" width="700" height="20" fill="#e5e7eb" stroke="black" strokeWidth="1.5" />
                 {Array.from({ length: Math.max(1, toNumber(project.geometry.numberOfGirders, 1)) }, (_, i) => {
                   const count = Math.max(1, toNumber(project.geometry.numberOfGirders, 1));
                   const x = count === 1 ? 410 : 80 + (i * 680) / (count - 1);
-                  return <rect key={`girder-${i}`} x={x - 9} y="88" width="18" height="106" fill="#9ca3af" stroke="black" strokeWidth="2" />;
+                  return (
+                    <g key={`girder-${i}`}>
+                      <rect x={x - 24} y="95" width="48" height="10" fill="#9ca3af" stroke="black" strokeWidth="1.5" />
+                      <rect x={x - 5} y="105" width="10" height="74" fill="#9ca3af" stroke="black" strokeWidth="1.5" />
+                      <rect x={x - 24} y="179" width="48" height="10" fill="#9ca3af" stroke="black" strokeWidth="1.5" />
+                    </g>
+                  );
                 })}
-                <text x="60" y="210" fontSize="16" fontWeight="700">Girders shown: {formatDisplay(project.geometry.numberOfGirders, 0)}</text>
               </svg>
-            </PlaceholderSketch>
+            </div>
           </section>
 
           <section className={styles.card}>
@@ -1313,25 +1316,24 @@ export default function CompositeSteelGirderLrfdPage() {
 
           <section className={styles.card}>
             <h3 className={styles.sectionTitle}>Stud Layouts</h3>
-            <label className={styles.inlineCheckbox}>
-              <input
-                type="checkbox"
-                checked={project.schedules.studLayout?.simpleLayout ?? true}
-                onChange={(event) =>
+            <div className={styles.inlineInputsRow}>
+              <span>Simple layout</span>
+              <ToggleChoice
+                value={project.schedules.studLayout?.simpleLayout ?? true}
+                onChange={(nextChecked) =>
                   updateProject((current) => ({
                     ...current,
                     schedules: {
                       ...current.schedules,
                       studLayout: {
                         ...current.schedules.studLayout,
-                        simpleLayout: event.target.checked,
+                        simpleLayout: nextChecked,
                       },
                     },
                   }))
                 }
               />
-              Simple layout
-            </label>
+            </div>
 
             {(project.schedules.studLayout?.simpleLayout ?? true) && (
               <div className={styles.inlineInputsRow}>
@@ -1358,26 +1360,64 @@ export default function CompositeSteelGirderLrfdPage() {
               ))}
             </tbody></table></div>
             <PlaceholderSketch title="Stud Layout">
-              <svg viewBox="0 0 260 160" width="100%" height="160"><rect width="260" height="160" fill="white" /><rect x="20" y="70" width="220" height="20" fill="#d1d5db" stroke="black" />{[40,65,90,115,140,165,190,215].map((x) => <line key={x} x1={x} y1="56" x2={x} y2="70" stroke="black" strokeWidth="4" />)}<text x="20" y="28" fontSize="12" fontWeight="700">Stud layout template</text></svg>
+              <svg viewBox="0 0 320 180" width="100%" height="180">
+                <rect width="320" height="180" fill="white" />
+                <rect x="40" y="118" width="240" height="12" fill="#9ca3af" stroke="black" strokeWidth="1.5" />
+                <rect x="150" y="84" width="20" height="34" fill="#9ca3af" stroke="black" strokeWidth="1.5" />
+                <rect x="40" y="130" width="240" height="12" fill="#9ca3af" stroke="black" strokeWidth="1.5" />
+                {(() => {
+                  const studCount = Math.max(0, Math.floor(toNumber(project.schedules.studLayout?.constants?.studsPerRow, 0)));
+                  const spacing = studCount <= 1 ? 0 : 180 / (studCount - 1);
+                  const firstX = 160 - (spacing * (studCount - 1)) / 2;
+                  return Array.from({ length: studCount }, (_, idx) => {
+                    const x = firstX + idx * spacing;
+                    return (
+                      <g key={`stud-${idx}`}>
+                        <rect x={x - 3} y="80" width="6" height="30" fill="#374151" />
+                        <rect x={x - 5} y="74" width="10" height="6" fill="#6b7280" />
+                      </g>
+                    );
+                  });
+                })()}
+              </svg>
             </PlaceholderSketch>
           </section>
 
           <section className={styles.card}>
-            <h3 className={styles.sectionTitle}>Diaphragm Locations</h3>
+            <h3 className={styles.sectionTitle}>Diaphragm Location</h3>
+            <div className={styles.inlineInputsRow}>
+              <label className={styles.inlineField}>
+                Number of diaphragms
+                <NumericInput
+                  className={styles.smallInput}
+                  value={project.schedules.diaphragmLocations.length}
+                  onCommit={(value) => {
+                    const count = Math.max(1, Math.floor(toNumber(value, 1)));
+                    updateProject((current) => ({
+                      ...current,
+                      schedules: {
+                        ...current.schedules,
+                        diaphragmLocations: resizeArray(current.schedules.diaphragmLocations, count, createDiaphragm()),
+                      },
+                    }));
+                  }}
+                />
+              </label>
+              <button type="button" className={styles.secondaryButton} onClick={() => updateProject((current) => ({ ...current, schedules: { ...current.schedules, diaphragmLocations: [...current.schedules.diaphragmLocations, createDiaphragm()] } }))}>Add</button>
+              <button type="button" className={styles.secondaryButton} onClick={() => updateProject((current) => ({ ...current, schedules: { ...current.schedules, diaphragmLocations: current.schedules.diaphragmLocations.length > 1 ? current.schedules.diaphragmLocations.slice(0, -1) : current.schedules.diaphragmLocations } }))}>Remove</button>
+            </div>
             <div className={styles.tableWrap}>
-              <table className={styles.table}><thead><tr><th>Name</th><th>distance from abutment x</th><th /></tr></thead><tbody>
+              <table className={styles.table}><thead><tr><th>Diaphragm</th><th>Location (ft) <span className={styles.infoIcon}>i<span className={styles.tooltipBox}>Distance from Abutment 1</span></span></th></tr></thead><tbody>
                 {project.schedules.diaphragmLocations.map((row, index) => (
                   <tr key={row.id}>
-                    <td>Diaphragm {index + 1}</td>
+                    <td>D{index + 1}</td>
                     <td><NumericInput value={row.x_ft} onCommit={(value)=>updateProject((current)=>({ ...current, schedules:{...current.schedules, diaphragmLocations: current.schedules.diaphragmLocations.map((entry)=>entry.id===row.id?{...entry,x_ft:value}:entry)}}))} /></td>
-                    <td><button type="button" className={styles.secondaryButton} onClick={()=>updateProject((current)=>({ ...current, schedules:{...current.schedules, diaphragmLocations: current.schedules.diaphragmLocations.length > 1 ? current.schedules.diaphragmLocations.filter((entry)=>entry.id!==row.id) : current.schedules.diaphragmLocations}}))}>Remove</button></td>
                   </tr>
                 ))}
               </tbody></table>
             </div>
-            <button type="button" className={styles.secondaryButton} onClick={()=>updateProject((current)=>({ ...current, schedules:{...current.schedules, diaphragmLocations:[...current.schedules.diaphragmLocations,createDiaphragm()]}}))}>Add diaphragm</button>
             <div className={styles.svgBlock}>
-              <svg viewBox="0 0 900 260" width="100%" height="260" role="img" aria-label="Steel framing plan with girders and diaphragms">
+              <svg viewBox="0 0 900 260" width="100%" height="260" role="img" aria-label="Structural steel plan with girders and diaphragms">
                 <rect x="0" y="0" width="900" height="260" fill="white" />
                 {Array.from({ length: Math.max(1, toNumber(project.geometry.numberOfGirders, 5)) }, (_, i) => {
                   const count = Math.max(1, toNumber(project.geometry.numberOfGirders, 5));
@@ -1385,6 +1425,10 @@ export default function CompositeSteelGirderLrfdPage() {
                   return <line key={`plan-girder-${i}`} x1="70" y1={y} x2="860" y2={y} stroke="#1f2937" strokeWidth="2" />;
                 })}
                 {(() => {
+                  const girderYs = Array.from({ length: Math.max(1, toNumber(project.geometry.numberOfGirders, 5)) }, (_, i) => {
+                    const count = Math.max(1, toNumber(project.geometry.numberOfGirders, 5));
+                    return count === 1 ? 130 : 40 + (i * 180) / (count - 1);
+                  });
                   const totalLength = project.geometry.spanLengths_ft.reduce((sum, value) => sum + toNumber(value), 0) || 1;
                   const cumulativePierMarkers = [];
                   let running = 0;
@@ -1393,28 +1437,32 @@ export default function CompositeSteelGirderLrfdPage() {
                     cumulativePierMarkers.push({ label: `Pier ${i + 1}`, xValue: running });
                   }
 
-                  return (project.schedules.diaphragmLocations || []).map((row, idx) => {
+                  const diaphragmGroups = (project.schedules.diaphragmLocations || []).map((row, idx) => {
                     const x = 70 + (Math.max(0, toNumber(row.x_ft, 0)) / totalLength) * 790;
                     return (
                       <g key={`dia-line-${row.id}`}>
-                        <line x1={x} y1="35" x2={x} y2="225" stroke="#2563eb" strokeWidth="2" strokeDasharray="5 4" />
-                        <text x={x + 4} y="50" fontSize="12" fill="#1d4ed8" fontWeight="700">D{idx + 1}</text>
+                        {girderYs.slice(0, -1).map((y, yIdx) => (
+                          <line key={`dia-seg-${row.id}-${yIdx}`} x1={x} y1={y + 4} x2={x} y2={girderYs[yIdx + 1] - 4} stroke="#2563eb" strokeWidth="2" />
+                        ))}
+                        <text x={x} y="246" textAnchor="middle" fontSize="12" fill="#1d4ed8" fontWeight="700">D{idx + 1}</text>
                       </g>
                     );
-                  }).concat(
-                    [{ label: 'Abutment 1', xValue: 0 }, ...cumulativePierMarkers, { label: 'Abutment 2', xValue: totalLength }].map((marker) => {
-                      const x = 70 + (Math.max(0, marker.xValue) / totalLength) * 790;
-                      return (
-                        <g key={`support-marker-${marker.label}`}>
-                          <line x1={x} y1="28" x2={x} y2="232" stroke="#111" strokeWidth="3" strokeDasharray="2 3" />
-                          <text x={x + 4} y="22" fontSize="12" fill="#111" fontWeight="700">{marker.label}</text>
-                        </g>
-                      );
-                    }),
-                  );
+                  });
+
+                  const supportGroups = [{ label: 'Abutment 1', xValue: 0 }, ...cumulativePierMarkers, { label: 'Abutment 2', xValue: totalLength }].map((marker) => {
+                    const x = 70 + (Math.max(0, marker.xValue) / totalLength) * 790;
+                    return (
+                      <g key={`support-marker-${marker.label}`}>
+                        <line x1={x} y1="28" x2={x} y2="232" stroke="#6b7280" strokeWidth="1.5" strokeDasharray="2 8" />
+                        <text x={x} y="20" textAnchor="middle" fontSize="12" fill="#111" fontWeight="600">{marker.label}</text>
+                      </g>
+                    );
+                  });
+
+                  return [...diaphragmGroups, ...supportGroups];
                 })()}
               </svg>
-              <h4 className={styles.diagramLabel}>Plan</h4>
+              <h4 className={styles.diagramLabel}>Structural Steel Plan</h4>
             </div>
           </section>
 
@@ -1434,7 +1482,7 @@ export default function CompositeSteelGirderLrfdPage() {
                   <div className={styles.grid4}>
                     <label className={styles.field}>
                       Bar size (primary)
-                      <select
+                      <select className={styles.toggleButton}
                         value={group.primaryBar}
                         onChange={(event) =>
                           updateProject((current) => ({
@@ -1468,28 +1516,27 @@ export default function CompositeSteelGirderLrfdPage() {
                       />
                     </label>
                   </div>
-                  <label className={styles.inlineCheckbox}>
-                    <input
-                      type="checkbox"
-                      checked={group.alternating}
-                      onChange={(event) =>
+                  <div className={styles.inlineInputsRow}>
+                    <span>Alternating bars</span>
+                    <ToggleChoice
+                      value={group.alternating}
+                      onChange={(nextChecked) =>
                         updateProject((current) => ({
                           ...current,
                           deckRebar: {
                             ...current.deckRebar,
-                            [groupKey]: { ...current.deckRebar[groupKey], alternating: event.target.checked },
+                            [groupKey]: { ...current.deckRebar[groupKey], alternating: nextChecked },
                           },
                         }))
                       }
                     />
-                    Alternating bars
-                  </label>
+                  </div>
                   {group.alternating && (
                     <>
                       <div className={styles.grid4}>
                         <label className={styles.field}>
                           Bar size (secondary)
-                          <select
+                          <select className={styles.toggleButton}
                             value={group.secondaryBar || ''}
                             onChange={(event) =>
                               updateProject((current) => ({
@@ -1518,7 +1565,7 @@ export default function CompositeSteelGirderLrfdPage() {
           </section>
 
           <section className={styles.card}>
-            <h3 className={styles.sectionTitle}>Materials (stub)</h3>
+            <h3 className={styles.sectionTitle}>Materials</h3>
             <div className={styles.grid3}>
               <label className={styles.field}>Steel Fy (ksi)<NumericInput value={project.materials.Fy_ksi} onCommit={(value) => updateProject((current) => ({ ...current, materials: { ...current.materials, Fy_ksi: value } }))} /></label>
               <label className={styles.field}>Concrete f’c (ksi)<NumericInput value={project.materials.fc_ksi} onCommit={(value) => updateProject((current) => ({ ...current, materials: { ...current.materials, fc_ksi: value } }))} /></label>
@@ -1531,19 +1578,11 @@ export default function CompositeSteelGirderLrfdPage() {
             <div className={styles.grid3}>
               <label className={styles.field}>Deck thickness (in)<NumericInput value={project.autoDeadLoad.deckThickness_in} onCommit={(value) => updateProject((current) => ({ ...current, autoDeadLoad: { ...current.autoDeadLoad, deckThickness_in: value } }))} /></label>
               <label className={styles.field}>Haunch thickness (in)<NumericInput value={project.autoDeadLoad.haunchThickness_in} onCommit={(value) => updateProject((current) => ({ ...current, autoDeadLoad: { ...current.autoDeadLoad, haunchThickness_in: value } }))} /></label>
-              <label className={styles.field}>Wearing surface thickness (in)<NumericInput value={project.autoDeadLoad.wearingSurfaceThickness_in} onCommit={(value) => updateProject((current) => ({ ...current, autoDeadLoad: { ...current.autoDeadLoad, wearingSurfaceThickness_in: value } }))} /></label>
-              <label className={styles.field}>Parapet/rail line load (k/ft)<NumericInput value={project.autoDeadLoad.parapetRailLineLoad_kft} onCommit={(value) => updateProject((current) => ({ ...current, autoDeadLoad: { ...current.autoDeadLoad, parapetRailLineLoad_kft: value } }))} /></label>
-              <label className={styles.field}>SIP forms load (psf)<NumericInput value={project.autoDeadLoad.sipForms_psf} onCommit={(value) => updateProject((current) => ({ ...current, autoDeadLoad: { ...current.autoDeadLoad, sipForms_psf: value } }))} /></label>
-              <label className={styles.field}>Steel unit weight (pcf)<NumericInput value={project.autoDeadLoad.steelUnitWeight_pcf} onCommit={(value) => updateProject((current) => ({ ...current, autoDeadLoad: { ...current.autoDeadLoad, steelUnitWeight_pcf: value } }))} /></label>
+              <label className={styles.field}>Wearing Surface (psf)<NumericInput value={project.autoDeadLoad.wearingSurface_psf} onCommit={(value) => updateProject((current) => ({ ...current, autoDeadLoad: { ...current.autoDeadLoad, wearingSurface_psf: value } }))} /></label>
+              <label className={styles.field}>Parapet (plf)<NumericInput value={project.autoDeadLoad.parapet_plf} onCommit={(value) => updateProject((current) => ({ ...current, autoDeadLoad: { ...current.autoDeadLoad, parapet_plf: value } }))} /></label>
+              <label className={styles.field}>Steel Density (pcf)<NumericInput value={project.autoDeadLoad.steelDensity_pcf} onCommit={(value) => updateProject((current) => ({ ...current, autoDeadLoad: { ...current.autoDeadLoad, steelDensity_pcf: value } }))} /></label>
+              <label className={styles.field}>Concrete Density (pcf)<NumericInput value={project.autoDeadLoad.concreteDensity_pcf} onCommit={(value) => updateProject((current) => ({ ...current, autoDeadLoad: { ...current.autoDeadLoad, concreteDensity_pcf: value } }))} /></label>
             </div>
-            <div className={styles.callout}>
-              Preliminary scaffold values: <strong>DC_line_kft = {formatDisplay(deadLoads.DC_line_kft, 4)}</strong>, <strong>DW_line_kft = {formatDisplay(deadLoads.DW_line_kft, 4)}</strong>.
-            </div>
-            <label className={styles.inlineCheckbox}>
-              <input type="checkbox" checked={project.autoDeadLoad.verifiedByUser} onChange={(event) => updateProject((current) => ({ ...current, autoDeadLoad: { ...current.autoDeadLoad, verifiedByUser: event.target.checked } }))} />
-              I have verified the computed DC/DW are correct.
-            </label>
-            <div className={styles.callout}>{project.meta.liveLoadNote}</div>
           </section>
 
           <section className={styles.card}>
@@ -1577,25 +1616,24 @@ export default function CompositeSteelGirderLrfdPage() {
                               }
                               disabled={project.geometry.spanPoints[location.spanIndex]?.momentAtMid}
                             />
-                            <label className={styles.inlineCheckbox}>
-                              <input
-                                type="checkbox"
-                                checked={Boolean(project.geometry.spanPoints[location.spanIndex]?.momentAtMid)}
-                                onChange={(event) =>
+                            <div className={styles.inlineInputsRow}>
+                              <span>midspan</span>
+                              <ToggleChoice
+                                value={Boolean(project.geometry.spanPoints[location.spanIndex]?.momentAtMid)}
+                                onChange={(nextChecked) =>
                                   updateProject((current) => {
                                     const nextPoints = [...current.geometry.spanPoints];
                                     const spanLength = toNumber(current.geometry.spanLengths_ft[location.spanIndex], 0);
                                     nextPoints[location.spanIndex] = {
                                       ...nextPoints[location.spanIndex],
-                                      momentAtMid: event.target.checked,
-                                      xPrime_ft: event.target.checked ? spanLength / 2 : nextPoints[location.spanIndex]?.xPrime_ft,
+                                      momentAtMid: nextChecked,
+                                      xPrime_ft: nextChecked ? spanLength / 2 : nextPoints[location.spanIndex]?.xPrime_ft,
                                     };
                                     return { ...current, geometry: { ...current.geometry, spanPoints: nextPoints } };
                                   })
                                 }
                               />
-                              midspan
-                            </label>
+                            </div>
                           </div>
                         ) : location.name.startsWith('Pier') ? (
                           'At Pier'
@@ -1625,38 +1663,14 @@ export default function CompositeSteelGirderLrfdPage() {
         <div className={styles.modalBackdrop}>
           <div className={styles.modal}>
             <h3>Calculator settings</h3>
-            <label className={styles.inlineCheckbox}>
-              <input
-                type="checkbox"
-                checked={project.settings.allowEditingInputsOnOtherTabs}
-                onChange={(event) =>
-                  updateProject((current) => ({
-                    ...current,
-                    settings: {
-                      ...current.settings,
-                      allowEditingInputsOnOtherTabs: event.target.checked,
-                    },
-                  }))
-                }
-              />
-              Allow editing inputs on other tabs
-            </label>
-            <label className={styles.inlineCheckbox}>
-              <input
-                type="checkbox"
-                checked={project.settings.allowOverridingFactoredCombinations}
-                onChange={(event) =>
-                  updateProject((current) => ({
-                    ...current,
-                    settings: {
-                      ...current.settings,
-                      allowOverridingFactoredCombinations: event.target.checked,
-                    },
-                  }))
-                }
-              />
-              Allow overriding factored combinations
-            </label>
+            <div className={styles.inlineInputsRow}>
+              <span>Allow editing inputs on other tabs</span>
+              <ToggleChoice value={project.settings.allowEditingInputsOnOtherTabs} onChange={(nextChecked) => updateProject((current) => ({ ...current, settings: { ...current.settings, allowEditingInputsOnOtherTabs: nextChecked } }))} />
+            </div>
+            <div className={styles.inlineInputsRow}>
+              <span>Allow overriding factored combinations</span>
+              <ToggleChoice value={project.settings.allowOverridingFactoredCombinations} onChange={(nextChecked) => updateProject((current) => ({ ...current, settings: { ...current.settings, allowOverridingFactoredCombinations: nextChecked } }))} />
+            </div>
 
             <div className={styles.modalActions}>
               <button className={styles.button} type="button" onClick={() => setSettingsOpen(false)}>

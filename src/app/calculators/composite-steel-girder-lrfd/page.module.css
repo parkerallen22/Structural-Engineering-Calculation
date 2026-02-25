@@ -107,8 +107,15 @@
 .field select {
   border: 1px solid #d1d5db;
   border-radius: 10px;
-  padding: 0.5rem 0.6rem;
+  padding: 0.35rem 0.5rem;
   font: inherit;
+  width: 96px;
+  max-width: 100%;
+}
+
+.field select {
+  width: auto;
+  min-width: 140px;
 }
 
 .inlineCheckbox {
@@ -116,6 +123,27 @@
   align-items: center;
   gap: 0.5rem;
   font-size: 0.93rem;
+}
+
+.toggleButtonGroup {
+  display: inline-flex;
+  border: 1px solid #cfd5e2;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.toggleButton {
+  border: 0;
+  background: #fff;
+  color: #111827;
+  padding: 0.35rem 0.8rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+.toggleButtonActive {
+  background: #111827;
+  color: #fff;
 }
 
 .tableWrap {
@@ -137,7 +165,7 @@
 }
 
 .table input {
-  width: 100%;
+  width: 90px;
   border: 1px solid #d1d5db;
   border-radius: 7px;
   padding: 0.35rem;
@@ -243,10 +271,51 @@
   border-radius: 8px;
   padding: 0.35rem 0.5rem;
   font: inherit;
+  width: 88px;
+  max-width: 100%;
 }
 
 .smallInput {
   width: 84px;
+}
+
+.infoIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: 1px solid #9ca3af;
+  border-radius: 50%;
+  font-size: 11px;
+  color: #374151;
+  cursor: help;
+  position: relative;
+}
+
+.tooltipBox {
+  position: absolute;
+  left: 20px;
+  top: -6px;
+  white-space: nowrap;
+  background: #111827;
+  color: #fff;
+  border-radius: 6px;
+  padding: 0.25rem 0.5rem;
+  font-size: 12px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.infoIcon:hover .tooltipBox {
+  opacity: 1;
+}
+
+.diagramSubLabel {
+  margin: 0.15rem 0 0;
+  text-align: center;
+  font-size: 0.9rem;
+  color: #4b5563;
 }
 
 .sectionInputsHorizontal {
