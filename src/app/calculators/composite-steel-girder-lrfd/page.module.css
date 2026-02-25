@@ -608,3 +608,69 @@
     padding-inline: 0;
   }
 }
+
+/* Conflict-safe overrides: keep changes grouped at file end to minimize merge overlap. */
+.grid3.compactInputGrid,
+.grid4.compactInputGrid {
+  grid-template-columns: repeat(auto-fit, minmax(145px, max-content));
+  justify-content: start;
+}
+
+.compactInputGrid .field {
+  width: 100%;
+  max-width: 210px;
+}
+
+.infoTooltipWrap {
+  isolation: isolate;
+  z-index: 5;
+}
+
+.infoPopover {
+  position: fixed;
+  left: auto;
+  transform: none;
+  z-index: 5000;
+}
+
+.infoPopoverAbove {
+  transform-origin: bottom center;
+}
+
+.infoPopoverBelow {
+  transform-origin: top center;
+}
+
+.sectionRow {
+  align-items: flex-start;
+}
+
+.deckRebarPairGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+}
+
+@media (max-width: 760px) {
+  .deckRebarPairGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.deckRebarPanel {
+  align-content: start;
+}
+
+.deckRebarInputsCompact {
+  grid-template-columns: repeat(2, minmax(0, 145px));
+  align-items: start;
+}
+
+.liveLoadsTable th,
+.liveLoadsTable td {
+  width: auto;
+}
+
+.liveLoadsTable th:first-child,
+.liveLoadsTable td:first-child {
+  min-width: 112px;
+}

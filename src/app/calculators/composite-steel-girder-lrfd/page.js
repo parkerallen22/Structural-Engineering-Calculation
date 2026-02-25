@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import styles from './page.module.css';
 
 const CALCULATOR_ID = 'composite-steel-girder-lrfd';
@@ -625,7 +626,7 @@ function LabelWithInfo({ label, info }) {
 function InfoTooltip({ text }) {
   const [open, setOpen] = useState(false);
   const [renderBelow, setRenderBelow] = useState(false);
-  const [horizontalNudgePx, setHorizontalNudgePx] = useState(0);
+  const [popoverPosition, setPopoverPosition] = useState({ left: 0, top: 0 });
   const tooltipId = useId();
   const containerRef = useRef(null);
   const popoverRef = useRef(null);
@@ -659,22 +660,42 @@ function InfoTooltip({ text }) {
   }, [open]);
 
   useLayoutEffect(() => {
-    if (!open || !popoverRef.current) {
-      return;
+    if (!open || !containerRef.current || !popoverRef.current) {
+      return undefined;
     }
 
-    const popoverRect = popoverRef.current.getBoundingClientRect();
     const margin = 12;
-    const leftOverflow = Math.max(0, margin - popoverRect.left);
-    const rightOverflow = Math.max(0, popoverRect.right - (window.innerWidth - margin));
 
-    if (leftOverflow > 0 || rightOverflow > 0) {
-      setHorizontalNudgePx(leftOverflow - rightOverflow);
-    } else {
-      setHorizontalNudgePx(0);
-    }
+    const updatePopoverPlacement = () => {
+      if (!containerRef.current || !popoverRef.current) {
+        return;
+      }
 
-    setRenderBelow(popoverRect.top < margin);
+      const triggerRect = containerRef.current.getBoundingClientRect();
+      const popoverRect = popoverRef.current.getBoundingClientRect();
+      const shouldRenderBelow = triggerRect.top - popoverRect.height - margin < 0;
+
+      const rawLeft = triggerRect.left + triggerRect.width / 2 - popoverRect.width / 2;
+      const clampedLeft = Math.min(
+        Math.max(rawLeft, margin),
+        window.innerWidth - popoverRect.width - margin,
+      );
+      const top = shouldRenderBelow
+        ? triggerRect.bottom + margin
+        : triggerRect.top - popoverRect.height - margin;
+
+      setRenderBelow(shouldRenderBelow);
+      setPopoverPosition({ left: clampedLeft, top: Math.max(margin, top) });
+    };
+
+    updatePopoverPlacement();
+    window.addEventListener('resize', updatePopoverPlacement);
+    window.addEventListener('scroll', updatePopoverPlacement, true);
+
+    return () => {
+      window.removeEventListener('resize', updatePopoverPlacement);
+      window.removeEventListener('scroll', updatePopoverPlacement, true);
+    };
   }, [open, text]);
 
   return (
@@ -694,17 +715,20 @@ function InfoTooltip({ text }) {
       >
         i
       </button>
-      {open ? (
-        <span
-          role="tooltip"
-          id={tooltipId}
-          ref={popoverRef}
-          className={`${styles.infoPopover} ${renderBelow ? styles.infoPopoverBelow : styles.infoPopoverAbove}`}
-          style={{ '--tooltip-x-nudge': `${horizontalNudgePx}px` }}
-        >
-          {text}
-        </span>
-      ) : null}
+      {open
+        ? createPortal(
+          <span
+            role="tooltip"
+            id={tooltipId}
+            ref={popoverRef}
+            className={`${styles.infoPopover} ${renderBelow ? styles.infoPopoverBelow : styles.infoPopoverAbove}`}
+            style={{ left: `${popoverPosition.left}px`, top: `${popoverPosition.top}px` }}
+          >
+            {text}
+          </span>,
+          document.body,
+        )
+        : null}
     </span>
   );
 }
