@@ -8,7 +8,7 @@ import { Chevron, DRAFT_STORAGE_KEY, FIELD_DEFINITIONS, LabelWithInfo, VarLabel,
 
 const rebarOptions = getRebarOptions();
 
-function NumberField({ label, info, value, onChange, unit, note, placeholder }) {
+function NumberField({ label, info, value, onChange, unit, note, placeholder, readOnly = false }) {
   return (
     <label className={styles.field}>
       <span className={styles.fieldLabel}><LabelWithInfo label={label} info={info} /></span>
@@ -19,6 +19,7 @@ function NumberField({ label, info, value, onChange, unit, note, placeholder }) 
           value={value ?? ''}
           placeholder={placeholder}
           onChange={(event) => onChange(event.target.value)}
+          readOnly={readOnly}
         />
         {unit ? <span className={styles.unitSuffix}>{unit}</span> : null}
       </div>
@@ -368,6 +369,19 @@ export default function CompositeSectionPropertiesPage() {
 
   const onRegionChange = (key, regionData) => setDraft((previous) => ({ ...previous, [key]: regionData }));
 
+  const autoEcInfo = useMemo(() => {
+    const fc = Number(draft.materials.fc);
+    if (!draft.materials.autoEc) {
+      return FIELD_DEFINITIONS.Ec;
+    }
+    if (!Number.isFinite(fc) || fc <= 0) {
+      return `${FIELD_DEFINITIONS.Ec} Auto-calc equation: Ec = 63,000 * sqrt(f'c [psi]). Enter f'c to see the computed value.`;
+    }
+    const ecKsi = (63 * Math.sqrt(fc * 1000)) / 1000;
+    return `${FIELD_DEFINITIONS.Ec} Auto-calc: Ec = 63,000 * sqrt(f'c [psi]) = ${Math.round(ecKsi * 1000) / 1000} ksi.`;
+  }, [draft.materials.autoEc, draft.materials.fc]);
+
+
   const onCalculate = () => {
     const { parsed, errors: parseErrors } = parseDraft(draft);
     if (parseErrors.length > 0) {
@@ -414,7 +428,21 @@ export default function CompositeSectionPropertiesPage() {
             <NumberField label={<VarLabel base="E" sub="s" unit="ksi" />} info={FIELD_DEFINITIONS.Es} value={draft.materials.Es} onChange={(value) => setDraft((previous) => ({ ...previous, materials: { ...previous.materials, Es: value } }))} />
             <NumberField label={<span><VarLabel base="f'c" unit="ksi" /></span>} info={FIELD_DEFINITIONS.fc} value={draft.materials.fc} onChange={(value) => setDraft((previous) => ({ ...previous, materials: { ...previous.materials, fc: value } }))} />
             <Toggle checked={draft.materials.autoEc} onChange={(event) => setDraft((previous) => ({ ...previous, materials: { ...previous.materials, autoEc: event.target.checked } }))} label="Auto-calculate Ec" info={FIELD_DEFINITIONS.autoEc} />
-            {!draft.materials.autoEc ? <NumberField label={<VarLabel base="E" sub="c" unit="ksi" />} info={FIELD_DEFINITIONS.Ec} value={draft.materials.EcManual} onChange={(value) => setDraft((previous) => ({ ...previous, materials: { ...previous.materials, EcManual: value } }))} /> : null}
+            {draft.materials.autoEc ? (
+              <NumberField
+                label={<VarLabel base="E" sub="c" unit="ksi" />}
+                info={autoEcInfo}
+                value={(() => {
+                  const fc = Number(draft.materials.fc);
+                  if (!Number.isFinite(fc) || fc <= 0) return "";
+                  return String(Math.round(((63 * Math.sqrt(fc * 1000)) / 1000) * 1000) / 1000);
+                })()}
+                onChange={() => {}}
+                readOnly
+              />
+            ) : (
+              <NumberField label={<VarLabel base="E" sub="c" unit="ksi" />} info={FIELD_DEFINITIONS.Ec} value={draft.materials.EcManual} onChange={(value) => setDraft((previous) => ({ ...previous, materials: { ...previous.materials, EcManual: value } }))} />
+            )}
           </div></article>
           <div className={styles.tempActions}>
             <button type="button" className={styles.secondaryButton} onClick={handleAutoFillTemp}>Auto Fill (TEMP)</button>

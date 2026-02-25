@@ -8,6 +8,7 @@ import { InputSummary, fmt, getSavedRun } from '../ui';
 import { ExpandedCalculations } from '../expanded-calculations';
 
 function SummaryTable({ region }) {
+  const regionSuffix = region.key === 'both' ? ' Positive and Negative Region' : '';
   return (
     <table className={styles.resultTable}>
       <thead>
@@ -22,9 +23,9 @@ function SummaryTable({ region }) {
       </thead>
       <tbody>
         <tr><td>Non-Composite (Steel Only)</td><td>{fmt(region.steelOnly.i)}</td><td>—</td><td>{fmt(region.steelOnly.sectionModulus.topOfSteel)}</td><td>{fmt(region.steelOnly.sectionModulus.bottomOfSteel)}</td><td>{fmt(region.steelOnly.yBar)}</td></tr>
-        <tr><td>Composite (n)</td><td>{fmt(region.compositeN.i)}</td><td>{fmt(region.compositeN.sectionModulus.topOfSlab)}</td><td>{fmt(region.compositeN.sectionModulus.topOfSteel)}</td><td>{fmt(region.compositeN.sectionModulus.bottomOfSteel)}</td><td>{fmt(region.compositeN.yBar)}</td></tr>
-        <tr><td>Composite (3n)</td><td>{fmt(region.composite3N.i)}</td><td>{fmt(region.composite3N.sectionModulus.topOfSlab)}</td><td>{fmt(region.composite3N.sectionModulus.topOfSteel)}</td><td>{fmt(region.composite3N.sectionModulus.bottomOfSteel)}</td><td>{fmt(region.composite3N.yBar)}</td></tr>
-        <tr><td>Composite (cr)</td><td>{fmt(region.compositeCr.i)}</td><td>{fmt(region.compositeCr.sectionModulus.topOfSlab)}</td><td>{fmt(region.compositeCr.sectionModulus.topOfSteel)}</td><td>{fmt(region.compositeCr.sectionModulus.bottomOfSteel)}</td><td>{fmt(region.compositeCr.yBar)}</td></tr>
+        <tr><td>{`Composite (n)${regionSuffix}`}</td><td>{fmt(region.compositeN.i)}</td><td>{fmt(region.compositeN.sectionModulus.topOfSlab)}</td><td>{fmt(region.compositeN.sectionModulus.topOfSteel)}</td><td>{fmt(region.compositeN.sectionModulus.bottomOfSteel)}</td><td>{fmt(region.compositeN.yBar)}</td></tr>
+        <tr><td>{`Composite (3n)${regionSuffix}`}</td><td>{fmt(region.composite3N.i)}</td><td>{fmt(region.composite3N.sectionModulus.topOfSlab)}</td><td>{fmt(region.composite3N.sectionModulus.topOfSteel)}</td><td>{fmt(region.composite3N.sectionModulus.bottomOfSteel)}</td><td>{fmt(region.composite3N.yBar)}</td></tr>
+        <tr><td>{`Composite (cr)${regionSuffix}`}</td><td>{fmt(region.compositeCr.i)}</td><td>{fmt(region.compositeCr.sectionModulus.topOfSlab)}</td><td>{fmt(region.compositeCr.sectionModulus.topOfSteel)}</td><td>{fmt(region.compositeCr.sectionModulus.bottomOfSteel)}</td><td>{fmt(region.compositeCr.yBar)}</td></tr>
       </tbody>
     </table>
   );
