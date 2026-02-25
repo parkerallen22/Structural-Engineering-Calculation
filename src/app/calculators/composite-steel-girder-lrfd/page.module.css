@@ -111,6 +111,15 @@
 .grid3 { grid-template-columns: repeat(auto-fit, minmax(min(165px, 100%), 1fr)); }
 .grid4 { grid-template-columns: repeat(auto-fit, minmax(min(145px, 100%), 1fr)); }
 
+.compactInputGrid {
+  justify-items: start;
+  column-gap: 0.35rem;
+}
+
+.compactInputGrid .field {
+  width: fit-content;
+}
+
 .field {
   display: grid;
   gap: 0.35rem;
@@ -403,10 +412,9 @@
 
 .infoPopover {
   position: absolute;
-  top: calc(100% + 0.4rem);
   left: 50%;
-  transform: translateX(-50%);
-  width: min(240px, 65vw);
+  transform: translateX(calc(-50% + var(--tooltip-x-nudge, 0px)));
+  width: min(220px, calc(100vw - 2rem));
   padding: 0.45rem 0.55rem;
   border-radius: 10px;
   border: 1px solid #dbe2ea;
@@ -416,6 +424,14 @@
   font-size: 0.78rem;
   line-height: 1.35;
   z-index: 10;
+}
+
+.infoPopoverAbove {
+  bottom: calc(100% + 0.35rem);
+}
+
+.infoPopoverBelow {
+  top: calc(100% + 0.35rem);
 }
 
 .diagramSubLabel {
@@ -515,8 +531,8 @@
 }
 
 .liveLoadsTable {
-  width: max-content;
-  min-width: 100%;
+  width: 100%;
+  min-width: 0;
   table-layout: auto;
 }
 
@@ -528,9 +544,14 @@
   vertical-align: middle;
 }
 
+.liveLoadsTable th,
+.liveLoadsTable td {
+  width: 1%;
+}
+
 .liveLoadsTable td input {
   width: 100%;
-  min-width: 74px;
+  min-width: 58px;
   box-sizing: border-box;
 }
 
