@@ -32,6 +32,23 @@ function buildExpandedRows(components, referenceY) {
   });
 }
 
+function buildExpandedRowsWithTopReference(components, neutralAxisFromTop, topFiberY) {
+  return components.map((component) => {
+    const componentFromTop = topFiberY - component.y;
+    const d = Math.abs(neutralAxisFromTop - componentFromTop);
+    const ad2 = component.area * d ** 2;
+    return {
+      name: component.name,
+      area: component.area,
+      yb: component.y,
+      ayb: component.area * component.y,
+      io: component.iLocal,
+      d,
+      ioPlusAd2: component.iLocal + ad2,
+    };
+  });
+}
+
 function safeDivide(numerator, denominator) {
   return Math.abs(denominator) < EPSILON ? null : numerator / denominator;
 }
@@ -203,7 +220,7 @@ function computePositiveMomentDetailed(region, modularRatio) {
     const hc = summary.concreteTopY;
     const ctSlab = hc - cb;
     const ctBeam = ctSlab - region.tHaunch - region.tSlab;
-    const rows = buildExpandedRows(summary.components, ctSlab);
+    const rows = buildExpandedRowsWithTopReference(summary.components, ctSlab, hc);
     const i = rows.reduce((sum, row) => sum + row.ioPlusAd2, 0);
 
     return {
