@@ -1,10 +1,15 @@
 .page {
+  background: linear-gradient(180deg, #f8fafc 0%, #eff6ff 100%);
+  min-height: 100%;
+}
+
+.content {
   display: grid;
   gap: 1.25rem;
-  padding-inline: 1.25rem;
-  max-width: 1600px;
+  max-width: 1200px;
   margin: 0 auto;
-  background: linear-gradient(180deg, #f8fafc 0%, #eff6ff 100%);
+  padding: 0 24px 1.25rem;
+  width: 100%;
 }
 
 .header {
@@ -473,4 +478,11 @@
 .utilityButton small {
   font-size: 0.68rem;
   opacity: 0.8;
+}
+
+
+@media (max-width: 640px) {
+  .content {
+    padding-inline: 16px;
+  }
 }
