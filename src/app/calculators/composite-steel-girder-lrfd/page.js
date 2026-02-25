@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import styles from './page.module.css';
 
 const CALCULATOR_ID = 'composite-steel-girder-lrfd';
@@ -606,6 +606,74 @@ function Symbol({ label, sub }) {
   );
 }
 
+function LabelWithInfo({ label, info }) {
+  return (
+    <span className={styles.labelWithInfo}>
+      <span>{label}</span>
+      <InfoTooltip text={info} />
+    </span>
+  );
+}
+
+function InfoTooltip({ text }) {
+  const [open, setOpen] = useState(false);
+  const tooltipId = useId();
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) {
+      return undefined;
+    }
+
+    const onDocumentClick = (event) => {
+      if (!containerRef.current?.contains(event.target)) {
+        setOpen(false);
+      }
+    };
+
+    const onEscape = (event) => {
+      if (event.key === 'Escape') {
+        setOpen(false);
+      }
+    };
+
+    window.addEventListener('mousedown', onDocumentClick);
+    window.addEventListener('touchstart', onDocumentClick);
+    window.addEventListener('keydown', onEscape);
+
+    return () => {
+      window.removeEventListener('mousedown', onDocumentClick);
+      window.removeEventListener('touchstart', onDocumentClick);
+      window.removeEventListener('keydown', onEscape);
+    };
+  }, [open]);
+
+  return (
+    <span
+      className={styles.infoTooltipWrap}
+      ref={containerRef}
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      <button
+        type="button"
+        className={styles.infoIcon}
+        aria-label={`Info: ${text}`}
+        aria-expanded={open}
+        aria-describedby={open ? tooltipId : undefined}
+        onClick={() => setOpen((previous) => !previous)}
+      >
+        i
+      </button>
+      {open ? (
+        <span role="tooltip" id={tooltipId} className={styles.infoPopover}>
+          {text}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
 function NumericInput({ value, onCommit, disabled = false, className = '' }) {
   const [draft, setDraft] = useState(toInputValue(value));
 
@@ -1049,7 +1117,7 @@ export default function CompositeSteelGirderLrfdPage() {
             <h4>Spans</h4>
             <div className={styles.grid4}>
               <label className={styles.field}>
-                # of spans
+                <LabelWithInfo label="# of Spans" info="Number of spans" />
                 <input
                   type="text"
                   inputMode="numeric"
@@ -1081,7 +1149,7 @@ export default function CompositeSteelGirderLrfdPage() {
               </label>
               {project.geometry.spanLengths_ft.map((span, index) => (
                 <label key={`span-${index}`} className={styles.field}>
-                  Span {index + 1} (ft)
+                  <LabelWithInfo label={`Span ${index + 1} (ft)`} info={`Length of span ${index + 1} in feet`} />
                   <NumericInput
                     value={span}
                     onCommit={(value) =>
@@ -1133,7 +1201,7 @@ export default function CompositeSteelGirderLrfdPage() {
                 </>
               ) : (
                 <label className={styles.field}>
-                  Overhang length (ft)
+                  <LabelWithInfo label="Overhang (ft)" info="Length concrete deck overhang in feet when looking at the cross section" />
                   <NumericInput
                     value={project.geometry.overhangLength_ft}
                     onCommit={(value) => updateProject((current) => ({ ...current, geometry: { ...current.geometry, overhangLength_ft: value, overhangLeft_ft: value, overhangRight_ft: value } }))}
@@ -1145,7 +1213,7 @@ export default function CompositeSteelGirderLrfdPage() {
             <h4>Girders</h4>
             <div className={styles.grid4}>
               <label className={styles.field}>
-                # of girders
+                <LabelWithInfo label="# of Girders" info="Number of girders" />
                 <NumericInput
                   value={project.geometry.numberOfGirders}
                   onCommit={(value) => {
@@ -1162,7 +1230,7 @@ export default function CompositeSteelGirderLrfdPage() {
                 />
               </label>
               <label className={styles.field}>
-                Skew (deg)
+                <LabelWithInfo label="Skew (deg)" info="Bridge skew in degrees" />
                 <NumericInput value={project.geometry.skew_deg} onCommit={(value) => updateProject((current) => ({ ...current, geometry: { ...current.geometry, skew_deg: value } }))} />
               </label>
             </div>
@@ -1172,7 +1240,7 @@ export default function CompositeSteelGirderLrfdPage() {
             </div>
             {project.geometry.constantSpacing ? (
               <label className={styles.field}>
-                Spacing (ft)
+                <LabelWithInfo label={<span>S<sub>G</sub> (ft)</span>} info="Girder spacing in feet" />
                 <NumericInput
                   value={project.geometry.spacing_ft}
                   onCommit={(value) =>
@@ -1194,7 +1262,7 @@ export default function CompositeSteelGirderLrfdPage() {
               <div className={styles.grid4}>
                 {resizeArray(project.geometry.spacingArray_ft, Math.max(0, project.geometry.numberOfGirders - 1), project.geometry.spacing_ft).map((value, index) => (
                   <label className={styles.field} key={`spacing-${index}`}>
-                    Girder {index + 1} to {index + 2} (ft)
+                    <LabelWithInfo label={<span>S<sub>G</sub> (ft)</span>} info="Girder spacing in feet" />
                     <NumericInput
                       value={value}
                       onCommit={(nextValue) =>
@@ -1352,14 +1420,14 @@ export default function CompositeSteelGirderLrfdPage() {
                       {!project.schedules.sectionConstant && (
                         <div className={styles.sectionRowTitle}>Section {index + 1}</div>
                       )}
-                      <label className={styles.inlineField}>Section label<input value={section.name} onChange={(event) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, sectionLabels: current.schedules.sectionLabels.map((entry) => entry.id === section.id ? { ...entry, name: event.target.value } : entry) } }))} /></label>
+                      <label className={styles.inlineField}><LabelWithInfo label="Label" info="Assign a label to this section" /><input value={section.name} onChange={(event) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, sectionLabels: current.schedules.sectionLabels.map((entry) => entry.id === section.id ? { ...entry, name: event.target.value } : entry) } }))} /></label>
                       {[
-                        ['D_in', 'D (in)'],
-                        ['tw_in', 'tw (in)'],
-                        ['tf_top_in', 'tf_top (in)'],
-                        ['bf_top_in', 'bf_top (in)'],
-                        ['tf_bot_in', 'tf_bot (in)'],
-                        ['bf_bot_in', 'bf_bot (in)'],
+                        ['D_in', <LabelWithInfo label="D (in)" info="Depth of steel beam in inches" />],
+                        ['tw_in', <LabelWithInfo label={<span>t<sub>w</sub> (in)</span>} info="Web thickness in inches" />],
+                        ['tf_top_in', <LabelWithInfo label={<span>t<sub>f_top</sub> (in)</span>} info="Top flange thickness in inches" />],
+                        ['bf_top_in', <LabelWithInfo label={<span>b<sub>f_top</sub> (in)</span>} info="Top flange width in inches" />],
+                        ['tf_bot_in', <LabelWithInfo label={<span>t<sub>f_bot</sub> (in)</span>} info="Bottom flange thickness in inches" />],
+                        ['bf_bot_in', <LabelWithInfo label={<span>b<sub>f_bot</sub> (in)</span>} info="Bottom flange width in inches" />],
                       ].map(([key, title]) => (
                         <label className={styles.inlineField} key={`${section.id}-${key}`}>
                           {title}
@@ -1514,14 +1582,14 @@ export default function CompositeSteelGirderLrfdPage() {
 
             {(project.schedules.studLayout?.simpleLayout ?? true) && (
               <div className={styles.inlineInputsRow}>
-                <label className={styles.inlineField}># of studs per row<NumericInput className={styles.smallInput} value={project.schedules.studLayout?.constants?.studsPerRow} onCommit={(value) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, studLayout: { ...current.schedules.studLayout, constants: { ...current.schedules.studLayout.constants, studsPerRow: value } } } }))} /></label>
-                <label className={styles.inlineField}>Stud Diameter (in)<NumericInput className={styles.smallInput} value={project.schedules.studLayout?.constants?.diameter_in} onCommit={(value) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, studLayout: { ...current.schedules.studLayout, constants: { ...current.schedules.studLayout.constants, diameter_in: value } } } }))} /></label>
-                <label className={styles.inlineField}>F<sub>y</sub> (ksi)<NumericInput className={styles.smallInput} value={project.schedules.studLayout?.constants?.Fy_ksi} onCommit={(value) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, studLayout: { ...current.schedules.studLayout, constants: { ...current.schedules.studLayout.constants, Fy_ksi: value } } } }))} /></label>
+                <label className={styles.inlineField}><LabelWithInfo label="# of Studs" info="Number of shear studs per row" /><NumericInput className={styles.smallInput} value={project.schedules.studLayout?.constants?.studsPerRow} onCommit={(value) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, studLayout: { ...current.schedules.studLayout, constants: { ...current.schedules.studLayout.constants, studsPerRow: value } } } }))} /></label>
+                <label className={styles.inlineField}><LabelWithInfo label={<span>D<sub>stud</sub> (in)</span>} info="Diameter of shear stud in inches" /><NumericInput className={styles.smallInput} value={project.schedules.studLayout?.constants?.diameter_in} onCommit={(value) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, studLayout: { ...current.schedules.studLayout, constants: { ...current.schedules.studLayout.constants, diameter_in: value } } } }))} /></label>
+                <label className={styles.inlineField}><LabelWithInfo label={<span>F<sub>y_stud</sub> (ksi)</span>} info="Yield strength of shear stud in ksi" /><NumericInput className={styles.smallInput} value={project.schedules.studLayout?.constants?.Fy_ksi} onCommit={(value) => updateProject((current) => ({ ...current, schedules: { ...current.schedules, studLayout: { ...current.schedules.studLayout, constants: { ...current.schedules.studLayout.constants, Fy_ksi: value } } } }))} /></label>
               </div>
             )}
 
             <div className={styles.studLayoutContent}>
-              <div className={`${styles.tableWrap} ${styles.studLayoutTable}`}><table className={`${styles.table} ${styles.compactTable}`}><thead><tr><th>Name</th><th>Start Location</th><th>End Location</th><th>Spacing</th>{!(project.schedules.studLayout?.simpleLayout ?? true) && <><th># of studs per row</th><th>Stud Diameter (in)</th><th>F<sub>y</sub> (ksi)</th></>}</tr></thead><tbody>
+              <div className={`${styles.tableWrap} ${styles.studLayoutTable}`}><table className={`${styles.table} ${styles.compactTable}`}><thead><tr><th>Name</th><th>Start Location</th><th>End Location</th><th>Spacing</th>{!(project.schedules.studLayout?.simpleLayout ?? true) && <><th><LabelWithInfo label="# of Studs" info="Number of shear studs per row" /></th><th><LabelWithInfo label={<span>D<sub>stud</sub> (in)</span>} info="Diameter of shear stud in inches" /></th><th><LabelWithInfo label={<span>F<sub>y_stud</sub> (ksi)</span>} info="Yield strength of shear stud in ksi" /></th></>}</tr></thead><tbody>
               {(project.schedules.studLayout?.rows || []).map((row, idx) => (
                 <tr key={row.id}><td>{row.name}</td>
                   <td><NumericInput value={row.startX_ft} onCommit={(value)=>updateProject((current)=>({ ...current, schedules:{...current.schedules, studLayout:{...current.schedules.studLayout, rows: current.schedules.studLayout.rows.map((entry, i)=> i===idx ? {...entry,startX_ft: value}:entry)}}}))} /></td>
@@ -1569,7 +1637,7 @@ export default function CompositeSteelGirderLrfdPage() {
             <h3 className={styles.sectionTitle}>Diaphragm Location</h3>
             <div className={`${styles.inlineInputsRow} ${styles.buttonRowSpacing}`}>
               <label className={styles.inlineField}>
-                Number of diaphragms
+                <LabelWithInfo label="# of Diaphragms" info="Number of diphragms" />
                 <NumericInput
                   className={styles.smallInput}
                   value={project.schedules.diaphragmLocations.length}
@@ -1600,7 +1668,7 @@ export default function CompositeSteelGirderLrfdPage() {
               <button type="button" className={styles.secondaryButton} onClick={() => updateProject((current) => ({ ...current, schedules: { ...current.schedules, diaphragmLocations: current.schedules.diaphragmLocations.length > 1 ? current.schedules.diaphragmLocations.slice(0, -1) : current.schedules.diaphragmLocations } }))}>Remove</button>
             </div>
             <div className={`${styles.tableWrap} ${styles.diaphragmTableWrap}`}>
-              <table className={`${styles.table} ${styles.diaphragmTable}`}><thead><tr><th>Diaphragm</th><th>Location (ft) <span className={styles.infoIcon}>i<span className={styles.tooltipBox}>Distance from Abutment 1</span></span></th></tr></thead><tbody>
+              <table className={`${styles.table} ${styles.diaphragmTable}`}><thead><tr><th>Diaphragm</th><th><LabelWithInfo label="Location (ft)" info="Distance from Abutment 1" /></th></tr></thead><tbody>
                 {project.schedules.diaphragmLocations.map((row, index) => (
                   <tr key={row.id}>
                     <td>D{index + 1}</td>
@@ -1680,7 +1748,7 @@ export default function CompositeSteelGirderLrfdPage() {
                         <h5 className={styles.deckRebarPanelTitle}>{label}</h5>
                         <div className={styles.deckRebarInputsCompact}>
                           <label className={styles.field}>
-                            Bar size
+                            <LabelWithInfo label="Bar Size" info="Top reinforcement bar size" />
                             <select className={styles.dropdownSelect}
                               value={group.primaryBar}
                               onChange={(event) =>
@@ -1698,7 +1766,7 @@ export default function CompositeSteelGirderLrfdPage() {
                             </select>
                           </label>
                           <label className={styles.field}>
-                            Spacing (in)
+                            <LabelWithInfo label="S (in)" info="Top reinforcement bar spacing in inches" />
                             <input
                               type="text"
                               inputMode="decimal"
@@ -1734,7 +1802,7 @@ export default function CompositeSteelGirderLrfdPage() {
                           <>
                             <div className={styles.deckRebarInputsCompact}>
                               <label className={styles.field}>
-                                Bar size (alternate)
+                                <LabelWithInfo label="Alternate Bar Size" info="Top alternate reinforcement bar size. Alternates with primary bar above" />
                                 <select className={styles.dropdownSelect}
                                   value={group.secondaryBar || ''}
                                   onChange={(event) =>
@@ -1769,17 +1837,17 @@ export default function CompositeSteelGirderLrfdPage() {
           <section className={styles.card}>
             <h3 className={styles.sectionTitle}>Materials</h3>
             <div className={styles.grid3}>
-              <label className={styles.field}>Steel F<sub>y</sub> (ksi)<NumericInput value={project.materials.Fy_ksi} onCommit={(value) => updateProject((current) => ({ ...current, materials: { ...current.materials, Fy_ksi: value } }))} /></label>
-              <label className={styles.field}>Concrete f'<sub>c</sub> (ksi)<NumericInput value={project.materials.fc_ksi} onCommit={(value) => updateProject((current) => ({ ...current, materials: { ...current.materials, fc_ksi: value } }))} /></label>
-              <label className={styles.field}>E<sub>s</sub> (ksi)<NumericInput value={project.materials.Es_ksi} onCommit={(value) => updateProject((current) => ({ ...current, materials: { ...current.materials, Es_ksi: value } }))} /></label>
+              <label className={styles.field}><LabelWithInfo label={<span>F<sub>y</sub> (ksi)</span>} info="Yield strength of steel girder in ksi" /><NumericInput value={project.materials.Fy_ksi} onCommit={(value) => updateProject((current) => ({ ...current, materials: { ...current.materials, Fy_ksi: value } }))} /></label>
+              <label className={styles.field}><LabelWithInfo label={<span>f'<sub>c</sub> (ksi)</span>} info="Compressive strength of concrete in ksi" /><NumericInput value={project.materials.fc_ksi} onCommit={(value) => updateProject((current) => ({ ...current, materials: { ...current.materials, fc_ksi: value } }))} /></label>
+              <label className={styles.field}><LabelWithInfo label={<span>E<sub>s</sub> (ksi)</span>} info="Modulus of elasticity of steel girder in ksi" /><NumericInput value={project.materials.Es_ksi} onCommit={(value) => updateProject((current) => ({ ...current, materials: { ...current.materials, Es_ksi: value } }))} /></label>
             </div>
           </section>
 
           <section className={styles.card}>
             <h3 className={styles.sectionTitle}>Dead Loads</h3>
             <div className={styles.grid3}>
-              <label className={styles.field}>Deck thickness (in)<NumericInput value={project.autoDeadLoad.deckThickness_in} onCommit={(value) => updateProject((current) => ({ ...current, autoDeadLoad: { ...current.autoDeadLoad, deckThickness_in: value } }))} /></label>
-              <label className={styles.field}>Haunch thickness (in)<NumericInput value={project.autoDeadLoad.haunchThickness_in} onCommit={(value) => updateProject((current) => ({ ...current, autoDeadLoad: { ...current.autoDeadLoad, haunchThickness_in: value } }))} /></label>
+              <label className={styles.field}><LabelWithInfo label={<span>t<sub>s</sub> (in)</span>} info="Deck thickness in inches" /><NumericInput value={project.autoDeadLoad.deckThickness_in} onCommit={(value) => updateProject((current) => ({ ...current, autoDeadLoad: { ...current.autoDeadLoad, deckThickness_in: value } }))} /></label>
+              <label className={styles.field}><LabelWithInfo label={<span>t<sub>fillet</sub> (in)</span>} info="Fillet thickness in inches" /><NumericInput value={project.autoDeadLoad.haunchThickness_in} onCommit={(value) => updateProject((current) => ({ ...current, autoDeadLoad: { ...current.autoDeadLoad, haunchThickness_in: value } }))} /></label>
               <label className={styles.field}>Wearing Surface (psf)<NumericInput value={project.autoDeadLoad.wearingSurface_psf} onCommit={(value) => updateProject((current) => ({ ...current, autoDeadLoad: { ...current.autoDeadLoad, wearingSurface_psf: value } }))} /></label>
               <label className={styles.field}>Parapet (plf)<NumericInput value={project.autoDeadLoad.parapet_plf} onCommit={(value) => updateProject((current) => ({ ...current, autoDeadLoad: { ...current.autoDeadLoad, parapet_plf: value } }))} /></label>
               <label className={styles.field}>Steel Density (pcf)<NumericInput value={project.autoDeadLoad.steelDensity_pcf} onCommit={(value) => updateProject((current) => ({ ...current, autoDeadLoad: { ...current.autoDeadLoad, steelDensity_pcf: value } }))} /></label>
