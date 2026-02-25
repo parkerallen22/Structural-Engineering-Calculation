@@ -32,6 +32,8 @@ export const FIELD_DEFINITIONS = {
   bottomClearCover: 'Clear distance from concrete face to bottom reinforcement.',
   positiveSameAsNegative: 'Use the same geometry and reinforcement for positive and negative regions.',
   topEqualsBottomFlange: 'Bottom flange dimensions mirror the top flange dimensions.',
+  aiscIx: 'Moment of inertia Ix from the AISC Steel Manual for the selected W-shape.',
+  aiscSx: 'Section modulus Sx from the AISC Steel Manual for the selected W-shape.',
   autoEc: 'Automatically compute Ec from concrete strength.',
   topAlternatingBars: 'Enable alternating bar sizes in top reinforcement.',
   bottomAlternatingBars: 'Enable alternating bar sizes in bottom reinforcement.',
@@ -131,6 +133,14 @@ export function parseDraft(draft) {
   const parsed = {
     positiveSameAsNegative: Boolean(draft.positiveSameAsNegative),
     topEqualsBottomFlange: Boolean(draft.topEqualsBottomFlange),
+    aiscManualShape: {
+      Ix: draft.topEqualsBottomFlange
+        ? requireNumber(draft.aiscManualShape?.Ix, 'W-shape Ix', { min: 0 })
+        : null,
+      Sx: draft.topEqualsBottomFlange
+        ? requireNumber(draft.aiscManualShape?.Sx, 'W-shape Sx', { min: 0 })
+        : null,
+    },
     materials: {
       Es: requireNumber(draft.materials.Es, 'Es', { min: 0 }),
       fc: requireNumber(draft.materials.fc, "f'c", { min: 0 }),
@@ -163,6 +173,10 @@ export function getInputSummaryRows(input) {
     { key: 'bfTop', label: <VarLabel base="b" sub="f,top" />, value: fmtInput(region.bfTop), unit: 'in' },
     { key: 'tfBot', label: <VarLabel base="t" sub="f,bot" />, value: fmtInput(region.tfBot), unit: 'in' },
     { key: 'bfBot', label: <VarLabel base="b" sub="f,bot" />, value: fmtInput(region.bfBot), unit: 'in' },
+    ...(input.topEqualsBottomFlange ? [
+      { key: 'aiscIx', label: <VarLabel base="I" sub="x" />, value: fmtInput(input.aiscManualShape?.Ix), unit: 'in⁴' },
+      { key: 'aiscSx', label: <VarLabel base="S" sub="x" />, value: fmtInput(input.aiscManualShape?.Sx), unit: 'in³' },
+    ] : []),
     { key: 'tHaunch', label: <VarLabel base="t" sub="haunch" />, value: fmtInput(region.tHaunch), unit: 'in' },
     { key: 'tSlab', label: <VarLabel base="t" sub="slab" />, value: fmtInput(region.tSlab), unit: 'in' },
     { key: 'bEff', label: <VarLabel base="b" sub="eff" />, value: fmtInput(region.bEff), unit: 'in' },

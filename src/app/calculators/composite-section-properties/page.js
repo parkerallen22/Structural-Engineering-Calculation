@@ -407,6 +407,11 @@ export default function CompositeSectionPropertiesPage() {
         Es: '29000',
         fc: '4',
       },
+      aiscManualShape: {
+        ...previous.aiscManualShape,
+        Ix: '3400',
+        Sx: '255',
+      },
       negative: region,
       positive: region,
     }));
@@ -422,6 +427,30 @@ export default function CompositeSectionPropertiesPage() {
             <div className={styles.stackMd}>
               <Toggle checked={draft.positiveSameAsNegative} onChange={(event) => setDraft((previous) => ({ ...previous, positiveSameAsNegative: event.target.checked }))} label="Positive Same As Negative" info={FIELD_DEFINITIONS.positiveSameAsNegative} helperText="Use one set of inputs for both regions." />
               <Toggle checked={draft.topEqualsBottomFlange} onChange={(event) => setDraft((previous) => ({ ...previous, topEqualsBottomFlange: event.target.checked }))} label="W-Shape" info={FIELD_DEFINITIONS.topEqualsBottomFlange} helperText="Bottom flange mirrors top flange." />
+              {draft.topEqualsBottomFlange ? (
+                <div className={styles.inputGrid}>
+                  <NumberField
+                    label={<VarLabel base="I" sub="x" unit="in⁴" />}
+                    info={FIELD_DEFINITIONS.aiscIx}
+                    value={draft.aiscManualShape?.Ix ?? ''}
+                    onChange={(value) => setDraft((previous) => ({
+                      ...previous,
+                      aiscManualShape: { ...previous.aiscManualShape, Ix: value },
+                    }))}
+                    note="Moment of Inertia from AISC Steel Manual"
+                  />
+                  <NumberField
+                    label={<VarLabel base="S" sub="x" unit="in³" />}
+                    info={FIELD_DEFINITIONS.aiscSx}
+                    value={draft.aiscManualShape?.Sx ?? ''}
+                    onChange={(value) => setDraft((previous) => ({
+                      ...previous,
+                      aiscManualShape: { ...previous.aiscManualShape, Sx: value },
+                    }))}
+                    note="Section Modulus from AISC Steel Manual"
+                  />
+                </div>
+              ) : null}
             </div>
           </article>
           <article className={styles.sectionCard}><h2>Material Properties</h2><div className={styles.inputGrid}>

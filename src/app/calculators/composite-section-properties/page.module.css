@@ -393,3 +393,9 @@
   line-height: 1.35;
   z-index: 10;
 }
+
+.expandedNote {
+  margin: 0.55rem 0 0;
+  font-size: 0.84rem;
+  color: #1f2937;
+}

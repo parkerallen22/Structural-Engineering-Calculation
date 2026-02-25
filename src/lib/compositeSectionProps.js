@@ -61,6 +61,7 @@ function computeBarLayer(matInput, concreteBottomY, concreteTopY, isTopMat) {
   if (!primary || spacing <= 0 || clearDistance < 0) {
     return {
       areaPerInch: 0,
+      transformedAreaForBEff: 0,
       yCentroid: concreteBottomY,
       detail: 'Mat omitted due to incomplete inputs.',
       assumption: null,
@@ -76,10 +77,10 @@ function computeBarLayer(matInput, concreteBottomY, concreteTopY, isTopMat) {
     const altSpacing = Number(matInput.altSpacing);
 
     if (secondary && altSpacing > 0) {
-      areaPerInch = 0.5 * ((primary.area / spacing) + (secondary.area / altSpacing));
+      areaPerInch = (primary.area / spacing) + (secondary.area / altSpacing);
       diameter = 0.5 * (primary.diameter + secondary.diameter);
       assumption =
-        'Alternating bars transformed with As/in = 0.5 * (A1/s1 + A2/s2).';
+        'Alternating bars transformed with As/in = (A1/s1 + A2/s2).';
     }
   }
 
@@ -90,6 +91,7 @@ function computeBarLayer(matInput, concreteBottomY, concreteTopY, isTopMat) {
 
   return {
     areaPerInch,
+    transformedAreaForBEff: 0,
     yCentroid,
     detail: `${matInput.barSize}${matInput.alternatingBars ? ` alternating ${matInput.altBarSize}` : ''}`,
     assumption,
@@ -259,13 +261,13 @@ function computePositiveMomentDetailed(region, modularRatio, bars) {
       const crackedComponents = [
         {
           name: 'Top slab reinforcement',
-          area: bars.top.areaPerInch,
+          area: bars.top.transformedAreaForBEff,
           y: bars.top.yCentroid,
           iLocal: 0,
         },
         {
           name: 'Bottom slab reinforcement',
-          area: bars.bottom.areaPerInch,
+          area: bars.bottom.transformedAreaForBEff,
           y: bars.bottom.yCentroid,
           iLocal: 0,
         },
@@ -366,6 +368,10 @@ export function getDefaultInput() {
   return {
     positiveSameAsNegative: false,
     topEqualsBottomFlange: false,
+    aiscManualShape: {
+      Ix: '',
+      Sx: '',
+    },
     materials: {
       Es: '',
       fc: '',
@@ -436,6 +442,9 @@ export function computeSectionProps(input) {
       bottom: computeBarLayer(region.rebarBottom, concreteBottomY, concreteTopY, false),
     };
 
+    bars.top.transformedAreaForBEff = bars.top.areaPerInch * region.bEff;
+    bars.bottom.transformedAreaForBEff = bars.bottom.areaPerInch * region.bEff;
+
     if (bars.top.assumption) {
       assumptions.push(`Top mat (${regionConfig.label}): ${bars.top.assumption}`);
     }
@@ -449,6 +458,20 @@ export function computeSectionProps(input) {
       bottomOfSteel: 0,
     });
 
+    const useAiscManual = input.topEqualsBottomFlange
+      && Number.isFinite(input.aiscManualShape?.Ix)
+      && Number.isFinite(input.aiscManualShape?.Sx)
+      && input.aiscManualShape.Ix > 0
+      && input.aiscManualShape.Sx > 0;
+
+    const steelOnlyDisplay = useAiscManual
+      ? {
+          i: input.aiscManualShape.Ix,
+          topOfSteel: input.aiscManualShape.Sx,
+          bottomOfSteel: input.aiscManualShape.Sx,
+        }
+      : null;
+
     const plusMoment = computePositiveMomentDetailed(region, modularRatio, bars);
     const compositeN = plusMoment.compositeN;
     const composite3N = plusMoment.composite3N;
@@ -460,6 +483,8 @@ export function computeSectionProps(input) {
       region,
       bars,
       steelOnly,
+      steelOnlyDisplay,
+      useAiscManual,
       compositeN,
       composite3N,
       compositeCr,
