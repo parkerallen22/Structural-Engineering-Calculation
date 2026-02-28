@@ -772,6 +772,38 @@ function NumericInput({ value, onCommit, disabled = false, className = '' }) {
   );
 }
 
+function PositiveIntegerInput({ value, onCommit, min = 1, disabled = false, className = '' }) {
+  const [draft, setDraft] = useState(toInputValue(value));
+
+  useEffect(() => {
+    setDraft(toInputValue(value));
+  }, [value]);
+
+  const commitDraft = () => {
+    const parsed = Math.floor(toNumber(draft, min));
+    const nextValue = Math.max(min, parsed);
+    onCommit(nextValue);
+    setDraft(String(nextValue));
+  };
+
+  return (
+    <input
+      className={className}
+      type="text"
+      inputMode="numeric"
+      value={draft}
+      disabled={disabled}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={commitDraft}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === 'Tab') {
+          commitDraft();
+        }
+      }}
+    />
+  );
+}
+
 
 function ToggleChoice({ value, onChange, yesLabel = 'Yes', noLabel = 'No' }) {
   return (
@@ -1185,13 +1217,10 @@ export default function CompositeSteelGirderLrfdPage() {
             <div className={`${styles.grid4} ${styles.compactInputGrid}`}>
               <label className={styles.field}>
                 <LabelWithInfo label="# of Spans" info="Number of spans" />
-                <input
-                  type="text"
-                  inputMode="numeric"
+                <PositiveIntegerInput
                   value={project.geometry.numberOfSpans}
                   disabled={allTabsReadOnly}
-                  onChange={(event) => {
-                    const nextCount = Math.max(1, Math.floor(toNumber(event.target.value, 1)));
+                  onCommit={(nextCount) => {
                     updateProject((current) => {
                       const lastSpanLength = current.geometry.spanLengths_ft[current.geometry.spanLengths_ft.length - 1] ?? null;
                       const nextSpans = resizeArray(current.geometry.spanLengths_ft, nextCount, lastSpanLength).map((value, index) =>
