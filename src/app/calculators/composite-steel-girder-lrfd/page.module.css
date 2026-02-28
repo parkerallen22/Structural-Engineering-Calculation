@@ -245,6 +245,60 @@
   background: #ecfeff;
 }
 
+.readOnlySummaryGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  gap: 0.45rem 0.9rem;
+}
+
+.readOnlySummaryGrid p {
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+.summaryList {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.sectionInputBlock {
+  border: 1px solid #dbe7f3;
+  border-radius: 12px;
+  padding: 0.7rem;
+  margin-top: 0.7rem;
+  background: #fbfdff;
+}
+
+.sectionSubTitle {
+  margin: 0 0 0.55rem;
+}
+
+.caseBlock {
+  border: 1px solid #dbe7f3;
+  border-radius: 12px;
+  padding: 0.8rem;
+  margin-top: 0.8rem;
+  background: #f8fafc;
+}
+
+.caseTitle {
+  margin: 0 0 0.65rem;
+  text-align: center;
+}
+
+.calcSplitGrid {
+  margin-top: 0.55rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
+  gap: 0.55rem;
+}
+
+.totalRow td {
+  font-weight: 700;
+}
+
 .modalBackdrop {
   position: fixed;
   inset: 0;

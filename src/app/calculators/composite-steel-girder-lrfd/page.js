@@ -3,6 +3,7 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import styles from './page.module.css';
+import { computeSectionProps } from '@/lib/compositeSectionProps';
 
 const CALCULATOR_ID = 'composite-steel-girder-lrfd';
 const STORAGE_BASE_KEY = `calculator:${CALCULATOR_ID}:latest`;
@@ -212,6 +213,140 @@ function round(value, digits = 3) {
     return 0;
   }
   return Number(numeric.toFixed(digits));
+}
+
+function formatResult(value, digits = 3) {
+  if (value === null || typeof value === 'undefined' || Number.isNaN(Number(value))) {
+    return '—';
+  }
+  return Number(value).toLocaleString(undefined, {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  });
+}
+
+function formatReadOnlyInput(value, unit = '') {
+  if (value === null || typeof value === 'undefined' || value === '') {
+    return '—';
+  }
+  return unit ? `${value} ${unit}` : String(value);
+}
+
+function mapDeckGroupToRebar(group, defaultBar = '#5', defaultClearDistance = 2) {
+  return {
+    barSize: group?.primaryBar || defaultBar,
+    spacing: toNumber(group?.spacing, 0),
+    clearDistance: defaultClearDistance,
+    alternatingBars: Boolean(group?.alternating && group?.secondaryBar),
+    altBarSize: group?.secondaryBar || '#6',
+    altSpacing: toNumber(group?.spacing, 0),
+  };
+}
+
+function buildSectionPropertiesInput(sectionLabel, project) {
+  const mirroredFlanges =
+    toNumber(sectionLabel?.tf_top_in, 0) === toNumber(sectionLabel?.tf_bot_in, 0)
+    && toNumber(sectionLabel?.bf_top_in, 0) === toNumber(sectionLabel?.bf_bot_in, 0);
+
+  const topDeckGroup = project.deckRebar?.transverseTop || project.deckRebar?.longitudinalTop;
+  const bottomDeckGroup = project.deckRebar?.transverseBottom || project.deckRebar?.longitudinalBottom;
+
+  const region = {
+    D: toNumber(sectionLabel?.D_in, 0),
+    tw: toNumber(sectionLabel?.tw_in, 0),
+    tfTop: toNumber(sectionLabel?.tf_top_in, 0),
+    bfTop: toNumber(sectionLabel?.bf_top_in, 0),
+    tfBot: toNumber(sectionLabel?.tf_bot_in, 0),
+    bfBot: toNumber(sectionLabel?.bf_bot_in, 0),
+    tHaunch: toNumber(project.autoDeadLoad?.haunchThickness_in, 0),
+    tSlab: toNumber(project.autoDeadLoad?.deckThickness_in, 0),
+    bEff: toNumber(project.geometry?.spacing_ft, 0) * 12,
+    rebarTop: mapDeckGroupToRebar(topDeckGroup),
+    rebarBottom: mapDeckGroupToRebar(bottomDeckGroup),
+  };
+
+  return {
+    positiveSameAsNegative: true,
+    topEqualsBottomFlange: mirroredFlanges,
+    aiscManualShape: {
+      Ix: null,
+      Sx: null,
+    },
+    materials: {
+      Es: toNumber(project.materials?.Es_ksi, 0),
+      fc: toNumber(project.materials?.fc_ksi, 0),
+      autoEc: true,
+      EcManual: null,
+    },
+    negative: region,
+    positive: region,
+  };
+}
+
+function getSummaryRow(regionResult) {
+  const steel = regionResult.steelOnly;
+  const manualSteel = regionResult.useAiscManual ? regionResult.steelOnlyDisplay : null;
+
+  return [
+    {
+      case: 'Non-Composite (Steel Only)',
+      i: manualSteel ? manualSteel.i : steel.i,
+      sTopSlab: null,
+      sTopSteel: manualSteel ? manualSteel.topOfSteel : steel.sectionModulus.topOfSteel,
+      sBottomSteel: manualSteel ? manualSteel.bottomOfSteel : steel.sectionModulus.bottomOfSteel,
+      yBar: steel.yBar,
+    },
+    {
+      case: 'Composite (n)',
+      i: regionResult.compositeN.i,
+      sTopSlab: regionResult.compositeN.sectionModulus.topOfSlab,
+      sTopSteel: regionResult.compositeN.sectionModulus.topOfSteel,
+      sBottomSteel: regionResult.compositeN.sectionModulus.bottomOfSteel,
+      yBar: regionResult.compositeN.yBar,
+    },
+    {
+      case: 'Composite (3n)',
+      i: regionResult.composite3N.i,
+      sTopSlab: regionResult.composite3N.sectionModulus.topOfSlab,
+      sTopSteel: regionResult.composite3N.sectionModulus.topOfSteel,
+      sBottomSteel: regionResult.composite3N.sectionModulus.bottomOfSteel,
+      yBar: regionResult.composite3N.yBar,
+    },
+    {
+      case: 'Composite (cr)',
+      i: regionResult.compositeCr.i,
+      sTopSlab: regionResult.compositeCr.sectionModulus.topOfSlab,
+      sTopSteel: regionResult.compositeCr.sectionModulus.topOfSteel,
+      sBottomSteel: regionResult.compositeCr.sectionModulus.bottomOfSteel,
+      yBar: regionResult.compositeCr.yBar,
+    },
+  ];
+}
+
+function getCaseCalculationSets(regionResult) {
+  return [
+    { key: 'nc', title: 'Non-Composite', detail: regionResult.plusMoment.nonComposite, hasTopSlab: false },
+    { key: 'n', title: 'Composite (n)', detail: regionResult.plusMoment.compositeN, hasTopSlab: true },
+    { key: '3n', title: 'Composite (3n)', detail: regionResult.plusMoment.composite3N, hasTopSlab: true },
+    { key: 'cr', title: 'Composite (cr)', detail: regionResult.plusMoment.compositeCr, hasTopSlab: true },
+  ];
+}
+
+function getSectionLocationsText(sectionLabel, project) {
+  const assignments = (project.schedules.sectionAssignments || [])
+    .filter((entry) => entry.labelId === sectionLabel.id)
+    .map((entry) => {
+      const location = (project.derived.locations || []).find((loc) => loc.id === entry.locationId);
+      return location?.name;
+    })
+    .filter(Boolean);
+
+  const segments = (project.schedules.sectionLocateSegments || [])
+    .filter((entry) => entry.labelId === sectionLabel.id && entry.startX !== '' && entry.endX !== '')
+    .map((entry) => `${entry.startX}–${entry.endX} ft`);
+
+  const text = [...assignments, ...segments];
+  return text.length ? text.join(', ') : 'Not assigned to a specific span/segment.';
 }
 
 function cloneFallbackValue(fallbackValue) {
@@ -1119,6 +1254,188 @@ export default function CompositeSteelGirderLrfdPage() {
   }, [project.deckRebar]);
 
   const renderResultsTab = (tabName) => {
+    if (tabName === 'Section Properties') {
+      const sectionLabels = displayedSectionLabels.filter((label) => label?.name);
+      const sectionRuns = sectionLabels.map((sectionLabel) => {
+        const sectionInput = buildSectionPropertiesInput(sectionLabel, project);
+        const result = computeSectionProps(sectionInput);
+        return {
+          sectionLabel,
+          sectionInput,
+          result,
+          regionResult: result?.regions?.[0] ?? null,
+        };
+      });
+
+      const validRuns = sectionRuns.filter((run) => run.regionResult);
+      const allSummaryRows = validRuns.flatMap((run) =>
+        getSummaryRow(run.regionResult).map((summary) => ({
+          ...summary,
+          sectionName: run.sectionLabel.name,
+        })),
+      );
+      const positiveSection = sectionLabels[0]?.name;
+      const negativeSection = sectionLabels[1]?.name;
+      const showPositiveNegativeNote = Boolean(positiveSection && negativeSection && positiveSection !== negativeSection);
+
+      return (
+        <>
+          <section className={styles.card}>
+            <h3 className={styles.sectionTitle}>Section Properties Inputs (Read-only)</h3>
+            {!sectionLabels.length ? (
+              <p className={styles.placeholderResult}>Define at least one section label in Inputs to view section properties.</p>
+            ) : (
+              <>
+                {showPositiveNegativeNote ? (
+                  <p className={styles.callout}><strong>Region sections differ:</strong> Positive region uses <strong>{positiveSection}</strong>, negative region uses <strong>{negativeSection}</strong>.</p>
+                ) : null}
+                {sectionLabels.map((section) => (
+                  <div key={section.id} className={styles.sectionInputBlock}>
+                    <h4 className={styles.sectionSubTitle}>{section.name}</h4>
+                    <div className={styles.readOnlySummaryGrid}>
+                      <p><strong>D:</strong> {formatReadOnlyInput(section.D_in, 'in')}</p>
+                      <p><strong>tw:</strong> {formatReadOnlyInput(section.tw_in, 'in')}</p>
+                      <p><strong>tf,top:</strong> {formatReadOnlyInput(section.tf_top_in, 'in')}</p>
+                      <p><strong>bf,top:</strong> {formatReadOnlyInput(section.bf_top_in, 'in')}</p>
+                      <p><strong>tf,bot:</strong> {formatReadOnlyInput(section.tf_bot_in, 'in')}</p>
+                      <p><strong>bf,bot:</strong> {formatReadOnlyInput(section.bf_bot_in, 'in')}</p>
+                      <p><strong>Haunch:</strong> {formatReadOnlyInput(project.autoDeadLoad.haunchThickness_in, 'in')}</p>
+                      <p><strong>Deck thickness:</strong> {formatReadOnlyInput(project.autoDeadLoad.deckThickness_in, 'in')}</p>
+                      <p><strong>Effective slab width:</strong> {formatReadOnlyInput(round(toNumber(project.geometry.spacing_ft, 0) * 12, 3), 'in')}</p>
+                      <p><strong>Es:</strong> {formatReadOnlyInput(project.materials.Es_ksi, 'ksi')}</p>
+                      <p><strong>f′c:</strong> {formatReadOnlyInput(project.materials.fc_ksi, 'ksi')}</p>
+                      <p><strong>Top deck bars:</strong> {formatReadOnlyInput(project.deckRebar?.transverseTop?.primaryBar || '—')} @ {formatReadOnlyInput(project.deckRebar?.transverseTop?.spacing, 'in')}</p>
+                      <p><strong>Bottom deck bars:</strong> {formatReadOnlyInput(project.deckRebar?.transverseBottom?.primaryBar || '—')} @ {formatReadOnlyInput(project.deckRebar?.transverseBottom?.spacing, 'in')}</p>
+                      <p><strong>Assigned locations:</strong> {getSectionLocationsText(section, project)}</p>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
+          </section>
+
+          {sectionRuns.map((run) => (
+            <section key={run.sectionLabel.id} className={styles.card}>
+              <h3 className={styles.sectionTitle}>Detailed Calculations — {run.sectionLabel.name}</h3>
+              {run.result?.errors?.length ? (
+                <div className={styles.warning}>
+                  <ul>
+                    {run.result.errors.map((error) => (
+                      <li key={`${run.sectionLabel.id}-${error}`}>{error}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              {run.regionResult
+                ? getCaseCalculationSets(run.regionResult).map((caseSet) => (
+                  <div key={`${run.sectionLabel.id}-${caseSet.key}`} className={styles.caseBlock}>
+                    <h4 className={styles.caseTitle}>{caseSet.title} — Positive and Negative Region</h4>
+                    <div className={styles.tableWrap}>
+                      <table className={styles.table}>
+                        <thead>
+                          <tr>
+                            <th>Component</th>
+                            <th>A (in²)</th>
+                            <th>Yb (in)</th>
+                            <th>AYb (in³)</th>
+                            <th>Io (in⁴)</th>
+                            <th>d (in)</th>
+                            <th>Io + Ad² (in⁴)</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {caseSet.detail.rows.map((row) => (
+                            <tr key={`${run.sectionLabel.id}-${caseSet.key}-${row.name}`}>
+                              <td>{row.name}</td>
+                              <td>{formatResult(row.area, 2)}</td>
+                              <td>{formatResult(row.yb, 2)}</td>
+                              <td>{formatResult(row.ayb, 2)}</td>
+                              <td>{formatResult(row.io, 2)}</td>
+                              <td>{formatResult(row.d, 2)}</td>
+                              <td>{formatResult(row.ioPlusAd2, 2)}</td>
+                            </tr>
+                          ))}
+                          <tr className={styles.totalRow}>
+                            <td>Total</td>
+                            <td>{formatResult(caseSet.detail.totals.area, 2)}</td>
+                            <td>—</td>
+                            <td>{formatResult(caseSet.detail.totals.ayb, 2)}</td>
+                            <td>—</td>
+                            <td>—</td>
+                            <td>{formatResult(caseSet.detail.totals.i, 2)}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className={styles.calcSplitGrid}>
+                      <div className={styles.tableWrap}>
+                        <table className={styles.table}>
+                          <tbody>
+                            <tr><td><strong>Cbottom steel ({caseSet.key})</strong></td><td>{formatResult(caseSet.detail.c.bottom, 2)}</td><td>in</td></tr>
+                            {caseSet.hasTopSlab ? <tr><td><strong>Ctop slab ({caseSet.key})</strong></td><td>{formatResult(caseSet.detail.c.topSlab, 2)}</td><td>in</td></tr> : null}
+                            <tr><td><strong>Ctop steel ({caseSet.key})</strong></td><td>{formatResult(caseSet.detail.c.topSteel ?? caseSet.detail.c.top, 2)}</td><td>in</td></tr>
+                            <tr><td><strong>Csection depth ({caseSet.key})</strong></td><td>{formatResult(caseSet.detail.c.depth, 2)}</td><td>in</td></tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <div className={styles.tableWrap}>
+                        <table className={styles.table}>
+                          <tbody>
+                            <tr><td><strong>Sbottom steel ({caseSet.key})</strong></td><td>{formatResult(caseSet.detail.s.bottom, 2)}</td><td>in³</td></tr>
+                            {caseSet.hasTopSlab ? <tr><td><strong>Stop slab ({caseSet.key})</strong></td><td>{formatResult(caseSet.detail.s.topSlab, 2)}</td><td>in³</td></tr> : null}
+                            <tr><td><strong>Stop steel ({caseSet.key})</strong></td><td>{formatResult(caseSet.detail.s.topSteel ?? caseSet.detail.s.top, 2)}</td><td>in³</td></tr>
+                            <tr><td><strong>I ({caseSet.key})</strong></td><td>{formatResult(caseSet.detail.i, 2)}</td><td>in⁴</td></tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                ))
+                : null}
+            </section>
+          ))}
+
+          <section className={styles.card}>
+            <h3 className={styles.sectionTitle}>Section Property Summary (Bottom Line)</h3>
+            {allSummaryRows.length ? (
+              <div className={styles.tableWrap}>
+                <table className={styles.table}>
+                  <thead>
+                    <tr>
+                      <th>Section</th>
+                      <th>Case</th>
+                      <th>I (in⁴)</th>
+                      <th>S top slab (in³)</th>
+                      <th>S top steel (in³)</th>
+                      <th>S bottom steel (in³)</th>
+                      <th>NA from steel bottom (in)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {allSummaryRows.map((row) => (
+                      <tr key={`${row.sectionName}-${row.case}`}>
+                        <td>{row.sectionName}</td>
+                        <td>{row.case}</td>
+                        <td>{formatResult(row.i)}</td>
+                        <td>{formatResult(row.sTopSlab)}</td>
+                        <td>{formatResult(row.sTopSteel)}</td>
+                        <td>{formatResult(row.sBottomSteel)}</td>
+                        <td>{formatResult(row.yBar)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className={styles.placeholderResult}>No valid section properties available yet. Complete the section geometry in Inputs first.</p>
+            )}
+          </section>
+        </>
+      );
+    }
+
     const locations = project.derived.locations;
     const rows = locations.map((location) => ({
       ...location,
