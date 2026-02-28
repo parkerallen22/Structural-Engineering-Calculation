@@ -3,6 +3,7 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import styles from './page.module.css';
+import { computeSectionProps } from '@/lib/compositeSectionProps';
 
 const CALCULATOR_ID = 'composite-steel-girder-lrfd';
 const STORAGE_BASE_KEY = `calculator:${CALCULATOR_ID}:latest`;
@@ -212,6 +213,114 @@ function round(value, digits = 3) {
     return 0;
   }
   return Number(numeric.toFixed(digits));
+}
+
+function formatResult(value, digits = 3) {
+  if (value === null || typeof value === 'undefined' || Number.isNaN(Number(value))) {
+    return '—';
+  }
+  return Number(value).toLocaleString(undefined, {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  });
+}
+
+function formatReadOnlyInput(value, unit = '') {
+  if (value === null || typeof value === 'undefined' || value === '') {
+    return '—';
+  }
+  return unit ? `${value} ${unit}` : String(value);
+}
+
+function mapDeckGroupToRebar(group, defaultBar = '#5', defaultClearDistance = 2) {
+  return {
+    barSize: group?.primaryBar || defaultBar,
+    spacing: toNumber(group?.spacing, 0),
+    clearDistance: defaultClearDistance,
+    alternatingBars: Boolean(group?.alternating && group?.secondaryBar),
+    altBarSize: group?.secondaryBar || '#6',
+    altSpacing: toNumber(group?.spacing, 0),
+  };
+}
+
+function buildSectionPropertiesInput(sectionLabel, project) {
+  const mirroredFlanges =
+    toNumber(sectionLabel?.tf_top_in, 0) === toNumber(sectionLabel?.tf_bot_in, 0)
+    && toNumber(sectionLabel?.bf_top_in, 0) === toNumber(sectionLabel?.bf_bot_in, 0);
+
+  const topDeckGroup = project.deckRebar?.transverseTop || project.deckRebar?.longitudinalTop;
+  const bottomDeckGroup = project.deckRebar?.transverseBottom || project.deckRebar?.longitudinalBottom;
+
+  const region = {
+    D: toNumber(sectionLabel?.D_in, 0),
+    tw: toNumber(sectionLabel?.tw_in, 0),
+    tfTop: toNumber(sectionLabel?.tf_top_in, 0),
+    bfTop: toNumber(sectionLabel?.bf_top_in, 0),
+    tfBot: toNumber(sectionLabel?.tf_bot_in, 0),
+    bfBot: toNumber(sectionLabel?.bf_bot_in, 0),
+    tHaunch: toNumber(project.autoDeadLoad?.haunchThickness_in, 0),
+    tSlab: toNumber(project.autoDeadLoad?.deckThickness_in, 0),
+    bEff: toNumber(project.geometry?.spacing_ft, 0) * 12,
+    rebarTop: mapDeckGroupToRebar(topDeckGroup),
+    rebarBottom: mapDeckGroupToRebar(bottomDeckGroup),
+  };
+
+  return {
+    positiveSameAsNegative: true,
+    topEqualsBottomFlange: mirroredFlanges,
+    aiscManualShape: {
+      Ix: null,
+      Sx: null,
+    },
+    materials: {
+      Es: toNumber(project.materials?.Es_ksi, 0),
+      fc: toNumber(project.materials?.fc_ksi, 0),
+      autoEc: true,
+      EcManual: null,
+    },
+    negative: region,
+    positive: region,
+  };
+}
+
+function getSummaryRow(regionResult) {
+  const steel = regionResult.steelOnly;
+  const manualSteel = regionResult.useAiscManual ? regionResult.steelOnlyDisplay : null;
+
+  return [
+    {
+      case: 'Non-Composite (Steel Only)',
+      i: manualSteel ? manualSteel.i : steel.i,
+      sTopSlab: null,
+      sTopSteel: manualSteel ? manualSteel.topOfSteel : steel.sectionModulus.topOfSteel,
+      sBottomSteel: manualSteel ? manualSteel.bottomOfSteel : steel.sectionModulus.bottomOfSteel,
+      yBar: steel.yBar,
+    },
+    {
+      case: 'Composite (n)',
+      i: regionResult.compositeN.i,
+      sTopSlab: regionResult.compositeN.sectionModulus.topOfSlab,
+      sTopSteel: regionResult.compositeN.sectionModulus.topOfSteel,
+      sBottomSteel: regionResult.compositeN.sectionModulus.bottomOfSteel,
+      yBar: regionResult.compositeN.yBar,
+    },
+    {
+      case: 'Composite (3n)',
+      i: regionResult.composite3N.i,
+      sTopSlab: regionResult.composite3N.sectionModulus.topOfSlab,
+      sTopSteel: regionResult.composite3N.sectionModulus.topOfSteel,
+      sBottomSteel: regionResult.composite3N.sectionModulus.bottomOfSteel,
+      yBar: regionResult.composite3N.yBar,
+    },
+    {
+      case: 'Composite (cr)',
+      i: regionResult.compositeCr.i,
+      sTopSlab: regionResult.compositeCr.sectionModulus.topOfSlab,
+      sTopSteel: regionResult.compositeCr.sectionModulus.topOfSteel,
+      sBottomSteel: regionResult.compositeCr.sectionModulus.bottomOfSteel,
+      yBar: regionResult.compositeCr.yBar,
+    },
+  ];
 }
 
 function cloneFallbackValue(fallbackValue) {
@@ -1119,6 +1228,100 @@ export default function CompositeSteelGirderLrfdPage() {
   }, [project.deckRebar]);
 
   const renderResultsTab = (tabName) => {
+    if (tabName === 'Section Properties') {
+      const sectionLabels = displayedSectionLabels.filter((label) => label?.name);
+      const firstSection = sectionLabels[0];
+      const sectionInput = firstSection ? buildSectionPropertiesInput(firstSection, project) : null;
+      const sectionResult = sectionInput ? computeSectionProps(sectionInput) : null;
+      const regionResult = sectionResult?.regions?.[0] ?? null;
+      const summaryRows = regionResult ? getSummaryRow(regionResult) : [];
+
+      return (
+        <>
+          <section className={styles.card}>
+            <h3 className={styles.sectionTitle}>Section Properties Inputs (Read-only)</h3>
+            {!firstSection ? (
+              <p className={styles.placeholderResult}>Define at least one section label in Inputs to view section properties.</p>
+            ) : (
+              <div className={styles.readOnlySummaryGrid}>
+                <p><strong>Section Label:</strong> {firstSection.name}</p>
+                <p><strong>D:</strong> {formatReadOnlyInput(firstSection.D_in, 'in')}</p>
+                <p><strong>tw:</strong> {formatReadOnlyInput(firstSection.tw_in, 'in')}</p>
+                <p><strong>tf,top:</strong> {formatReadOnlyInput(firstSection.tf_top_in, 'in')}</p>
+                <p><strong>bf,top:</strong> {formatReadOnlyInput(firstSection.bf_top_in, 'in')}</p>
+                <p><strong>tf,bot:</strong> {formatReadOnlyInput(firstSection.tf_bot_in, 'in')}</p>
+                <p><strong>bf,bot:</strong> {formatReadOnlyInput(firstSection.bf_bot_in, 'in')}</p>
+                <p><strong>Haunch:</strong> {formatReadOnlyInput(project.autoDeadLoad.haunchThickness_in, 'in')}</p>
+                <p><strong>Deck thickness:</strong> {formatReadOnlyInput(project.autoDeadLoad.deckThickness_in, 'in')}</p>
+                <p><strong>Effective slab width:</strong> {formatReadOnlyInput(round(toNumber(project.geometry.spacing_ft, 0) * 12, 3), 'in')}</p>
+                <p><strong>Es:</strong> {formatReadOnlyInput(project.materials.Es_ksi, 'ksi')}</p>
+                <p><strong>f′c:</strong> {formatReadOnlyInput(project.materials.fc_ksi, 'ksi')}</p>
+                <p><strong>Top deck bars:</strong> {formatReadOnlyInput(project.deckRebar?.transverseTop?.primaryBar || '—')} @ {formatReadOnlyInput(project.deckRebar?.transverseTop?.spacing, 'in')}</p>
+                <p><strong>Bottom deck bars:</strong> {formatReadOnlyInput(project.deckRebar?.transverseBottom?.primaryBar || '—')} @ {formatReadOnlyInput(project.deckRebar?.transverseBottom?.spacing, 'in')}</p>
+              </div>
+            )}
+          </section>
+
+          {sectionResult?.errors?.length ? (
+            <section className={`${styles.card} ${styles.warning}`}>
+              <h3 className={styles.sectionTitle}>Calculation input issues</h3>
+              <ul>
+                {sectionResult.errors.map((error) => (
+                  <li key={error}>{error}</li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          {regionResult ? (
+            <>
+              <section className={styles.card}>
+                <h3 className={styles.sectionTitle}>Section Property Calculations</h3>
+                <div className={styles.tableWrap}>
+                  <table className={styles.table}>
+                    <thead>
+                      <tr>
+                        <th>Case</th>
+                        <th>I (in⁴)</th>
+                        <th>S top slab (in³)</th>
+                        <th>S top steel (in³)</th>
+                        <th>S bottom steel (in³)</th>
+                        <th>NA from steel bottom (in)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {summaryRows.map((row) => (
+                        <tr key={row.case}>
+                          <td>{row.case}</td>
+                          <td>{formatResult(row.i)}</td>
+                          <td>{formatResult(row.sTopSlab)}</td>
+                          <td>{formatResult(row.sTopSteel)}</td>
+                          <td>{formatResult(row.sBottomSteel)}</td>
+                          <td>{formatResult(row.yBar)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              <section className={styles.card}>
+                <h3 className={styles.sectionTitle}>Summary</h3>
+                <ul className={styles.summaryList}>
+                  <li>Modular ratio n = {formatResult(sectionResult.materials.n)} and 3n = {formatResult(sectionResult.materials.n3)}.</li>
+                  <li>Non-composite steel inertia I = {formatResult(summaryRows[0]?.i)} in⁴.</li>
+                  <li>Composite (n) inertia I = {formatResult(summaryRows[1]?.i)} in⁴.</li>
+                  <li>Composite (3n) inertia I = {formatResult(summaryRows[2]?.i)} in⁴.</li>
+                  <li>Composite (cr) inertia I = {formatResult(summaryRows[3]?.i)} in⁴.</li>
+                  <li>Rebar clear distance defaulted to 2 in (from slab face to bar outside edge) for this tab.</li>
+                </ul>
+              </section>
+            </>
+          ) : null}
+        </>
+      );
+    }
+
     const locations = project.derived.locations;
     const rows = locations.map((location) => ({
       ...location,
