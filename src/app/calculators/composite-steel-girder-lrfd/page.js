@@ -179,7 +179,7 @@ function createInitialProject() {
       deckThickness_in: 8,
       haunchThickness_in: 2,
       wearingSurface_psf: 0,
-      parapet_plf: 0,
+      parapetArea_ft2: 0,
       steelDensity_pcf: 490,
       concreteDensity_pcf: 150,
     },
@@ -580,7 +580,8 @@ function computeAutoDeadLoad(project) {
 
   const concreteDensity = toNumber(inputs.concreteDensity_pcf, 150);
   const deckLineLoad = effectiveWidth * deckAndHaunch_ft * concreteDensity / 1000;
-  const parapet_kft = toNumber(inputs.parapet_plf) / 1000;
+  const parapetArea = toNumber(inputs.parapetArea_ft2, toNumber(inputs.parapet_plf, 0) / Math.max(concreteDensity, 1));
+  const parapet_kft = parapetArea * concreteDensity / 1000;
   const wearingLineLoad = (toNumber(inputs.wearingSurface_psf) * effectiveWidth) / 1000;
 
   const DC_line_kft = round(deckLineLoad + parapet_kft, 4);
@@ -922,8 +923,116 @@ export default function CompositeSteelGirderLrfdPage() {
         deckThickness_in: randomDecimal(7, 10, 1),
         haunchThickness_in: randomDecimal(1.5, 3, 1),
         wearingSurface_psf: randomInt(0, 30),
-        parapet_plf: randomInt(200, 900),
+        parapetArea_ft2: randomDecimal(1.5, 6, 2),
       },
+    };
+  };
+
+  const buildExampleProject = (current) => {
+    const spanLengths = [47, 55.417, 54.667, 48.167];
+    const numberOfGirders = 6;
+    const spacing = 7.333;
+    const baseSection = current.schedules.sectionLabels[0] ?? createSectionLabel('W27x94');
+    const blankStudRows = [
+      { id: crypto.randomUUID(), startX_ft: '', endX_ft: '', spacing_in: '' },
+      { id: crypto.randomUUID(), startX_ft: '', endX_ft: '', spacing_in: '' },
+      { id: crypto.randomUUID(), startX_ft: '', endX_ft: '', spacing_in: '' },
+      { id: crypto.randomUUID(), startX_ft: '', endX_ft: '', spacing_in: '' },
+      { id: crypto.randomUUID(), startX_ft: '', endX_ft: '', spacing_in: '' },
+      { id: crypto.randomUUID(), startX_ft: '', endX_ft: '', spacing_in: '' },
+      { id: crypto.randomUUID(), startX_ft: '', endX_ft: '', spacing_in: '' },
+    ];
+
+    return {
+      ...current,
+      geometry: {
+        ...current.geometry,
+        numberOfSpans: 4,
+        spanLengths_ft: spanLengths,
+        spanPoints: spanLengths.map((length) => ({ momentAtMid: true, xPrime_ft: round(length / 2, 3) })),
+        overhangsVary: false,
+        overhangLength_ft: 3.083,
+        overhangLeft_ft: 3.083,
+        overhangRight_ft: 3.083,
+        skew_deg: 13.175,
+        numberOfGirders,
+        constantSpacing: true,
+        spacing_ft: spacing,
+        spacingArray_ft: Array.from({ length: numberOfGirders - 1 }, () => spacing),
+      },
+      schedules: {
+        ...current.schedules,
+        sectionConstantChoice: 'yes',
+        sectionConstant: true,
+        sectionLabels: [
+          {
+            ...baseSection,
+            name: 'W27x94',
+            D_in: 26.9,
+            tw_in: 0.49,
+            tf_top_in: 0.745,
+            bf_top_in: 10,
+            tf_bot_in: 0.745,
+            bf_bot_in: 10,
+          },
+        ],
+        sectionLocateSegments: [createSectionLocateSegment(baseSection.id, { startX: '', endX: '' })],
+        studLayout: {
+          ...current.schedules.studLayout,
+          simpleLayout: true,
+          constants: {
+            ...current.schedules.studLayout.constants,
+            studsPerRow: 3,
+            diameter_in: 0.75,
+            Fy_ksi: 60,
+          },
+          rows: blankStudRows,
+        },
+        diaphragmLocations: [createDiaphragm()],
+      },
+      deckRebar: {
+        longitudinalTop: {
+          spacing: '12',
+          primaryBar: '#5',
+          alternating: true,
+          secondaryBar: '#6',
+        },
+        longitudinalBottom: {
+          spacing: '12',
+          primaryBar: '#5',
+          alternating: false,
+          secondaryBar: '',
+        },
+        transverseTop: {
+          spacing: '9',
+          primaryBar: '#5',
+          alternating: false,
+          secondaryBar: '',
+        },
+        transverseBottom: {
+          spacing: '6',
+          primaryBar: '#5',
+          alternating: false,
+          secondaryBar: '',
+        },
+      },
+      materials: {
+        ...current.materials,
+        Fy_ksi: 50,
+        fc_ksi: 4,
+        Es_ksi: 29000,
+      },
+      autoDeadLoad: {
+        ...current.autoDeadLoad,
+        deckThickness_in: 8,
+        haunchThickness_in: 0.5,
+        wearingSurface_psf: 50,
+        parapetArea_ft2: 3.8,
+        steelDensity_pcf: 490,
+        concreteDensity_pcf: 150,
+      },
+      demandByLocation: {},
+      comboOverridesByLocation: {},
     };
   };
 
@@ -1168,7 +1277,11 @@ export default function CompositeSteelGirderLrfdPage() {
           <button
             className={`${styles.secondaryButton} ${styles.utilityButton}`}
             type="button"
-            onClick={() => window.alert('Example Input coming soon.')}
+            onClick={() => {
+              const example = withLocationsAndDemands(buildExampleProject(project));
+              diaphragmValueMemoryRef.current = (example.schedules.diaphragmLocations || []).map((row) => row?.x_ft ?? null);
+              setProject(example);
+            }}
           >
             <span>Example Input</span>
             <small>temporary</small>
@@ -1988,7 +2101,7 @@ export default function CompositeSteelGirderLrfdPage() {
               <label className={styles.field}><LabelWithInfo label={<span>t<sub>s</sub> (in)</span>} info="Deck thickness in inches" /><NumericInput value={project.autoDeadLoad.deckThickness_in} onCommit={(value) => updateProject((current) => ({ ...current, autoDeadLoad: { ...current.autoDeadLoad, deckThickness_in: value } }))} /></label>
               <label className={styles.field}><LabelWithInfo label={<span>t<sub>fillet</sub> (in)</span>} info="Fillet thickness in inches" /><NumericInput value={project.autoDeadLoad.haunchThickness_in} onCommit={(value) => updateProject((current) => ({ ...current, autoDeadLoad: { ...current.autoDeadLoad, haunchThickness_in: value } }))} /></label>
               <label className={styles.field}>Wearing Surface (psf)<NumericInput value={project.autoDeadLoad.wearingSurface_psf} onCommit={(value) => updateProject((current) => ({ ...current, autoDeadLoad: { ...current.autoDeadLoad, wearingSurface_psf: value } }))} /></label>
-              <label className={styles.field}>Parapet (plf)<NumericInput value={project.autoDeadLoad.parapet_plf} onCommit={(value) => updateProject((current) => ({ ...current, autoDeadLoad: { ...current.autoDeadLoad, parapet_plf: value } }))} /></label>
+              <label className={styles.field}>Parapet Area (ft<sup>2</sup>)<NumericInput value={project.autoDeadLoad.parapetArea_ft2 ?? ''} onCommit={(value) => updateProject((current) => ({ ...current, autoDeadLoad: { ...current.autoDeadLoad, parapetArea_ft2: value } }))} /></label>
               <label className={styles.field}>Steel Density (pcf)<NumericInput value={project.autoDeadLoad.steelDensity_pcf} onCommit={(value) => updateProject((current) => ({ ...current, autoDeadLoad: { ...current.autoDeadLoad, steelDensity_pcf: value } }))} /></label>
               <label className={styles.field}>Concrete Density (pcf)<NumericInput value={project.autoDeadLoad.concreteDensity_pcf} onCommit={(value) => updateProject((current) => ({ ...current, autoDeadLoad: { ...current.autoDeadLoad, concreteDensity_pcf: value } }))} /></label>
             </div>
