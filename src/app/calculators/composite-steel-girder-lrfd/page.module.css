@@ -245,6 +245,24 @@
   background: #ecfeff;
 }
 
+.readOnlySummaryGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  gap: 0.45rem 0.9rem;
+}
+
+.readOnlySummaryGrid p {
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+.summaryList {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.3rem;
+}
+
 .modalBackdrop {
   position: fixed;
   inset: 0;
