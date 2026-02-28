@@ -1261,7 +1261,6 @@ export default function CompositeSteelGirderLrfdPage() {
         const result = computeSectionProps(sectionInput);
         return {
           sectionLabel,
-          sectionInput,
           result,
           regionResult: result?.regions?.[0] ?? null,
         };
