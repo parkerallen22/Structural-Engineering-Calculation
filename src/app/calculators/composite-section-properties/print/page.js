@@ -78,21 +78,21 @@ export default function CompositeSectionPrintPage() {
         </section>
 
         <section>
-          <h2>Calculations</h2>
-          {run.result.regions.map((region) => (
-            <div key={region.key} className={styles.printSectionBlock}>
-              <h3>{region.label}</h3>
-              <ExpandedCalculations regionResult={region} />
-            </div>
-          ))}
-        </section>
-
-        <section>
           <h2>Summary</h2>
           {run.result.regions.map((region) => (
             <div key={`summary-${region.key}`} className={styles.printSectionBlock}>
               <h3>{region.label}</h3>
               <SummaryTable region={region} />
+            </div>
+          ))}
+        </section>
+
+        <section>
+          <h2>Section Property Calculations Summary</h2>
+          {run.result.regions.map((region) => (
+            <div key={region.key} className={styles.printSectionBlock}>
+              <h3>{region.label}</h3>
+              <ExpandedCalculations regionResult={region} />
             </div>
           ))}
         </section>

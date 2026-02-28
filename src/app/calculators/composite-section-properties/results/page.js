@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import styles from '../page.module.css';
-import { Chevron, InputSummary, fmt, getSavedRun } from '../ui';
+import { InputSummary, fmt, getSavedRun } from '../ui';
 import { ExpandedCalculations } from '../expanded-calculations';
 
 function SummaryTable({ regionResult }) {
@@ -44,19 +44,6 @@ function SummaryTable({ regionResult }) {
   );
 }
 
-function CalculationsAccordion({ regionResult }) {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <details className={styles.detailAccordion} open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
-      <summary className={styles.calcSummaryToggle}>
-        <span className={styles.calcSummaryTitle}><Chevron open={open} />{open ? 'Hide calculations' : 'Show calculations'}</span>
-      </summary>
-      <ExpandedCalculations regionResult={regionResult} />
-    </details>
-  );
-}
-
 export default function CompositeSectionResultsPage() {
   const router = useRouter();
   const [run, setRun] = useState(null);
@@ -83,9 +70,22 @@ export default function CompositeSectionResultsPage() {
         <article key={regionResult.key} className={styles.sectionCard}>
           <h2>{regionResult.label}</h2>
           <SummaryTable regionResult={regionResult} />
-          <CalculationsAccordion regionResult={regionResult} />
         </article>
       ))}
+      <article className={styles.sectionCard}>
+        <h2>Section Property Calculations Summary</h2>
+        <div className={styles.stackMd}>
+          {run.result.regions.map((regionResult, index) => (
+            <Fragment key={`calc-${regionResult.key}`}>
+              <section className={styles.printSectionBlock}>
+                <h3>{regionResult.label}</h3>
+                <ExpandedCalculations regionResult={regionResult} />
+              </section>
+              {index < run.result.regions.length - 1 ? <hr /> : null}
+            </Fragment>
+          ))}
+        </div>
+      </article>
     </div>
   );
 }
